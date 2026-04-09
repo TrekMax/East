@@ -1,7 +1,6 @@
 //! Integration tests for extension command dispatch.
 
 use std::fs;
-use std::process::Command;
 
 use assert_cmd::Command as AssertCmd;
 use predicates::prelude::*;
@@ -88,6 +87,8 @@ commands:
 #[test]
 #[cfg(unix)]
 fn dispatch_script_command() {
+    use std::os::unix::fs::PermissionsExt;
+
     let workspace = TempDir::new().unwrap();
     fs::create_dir_all(workspace.path().join(".east")).unwrap();
 
@@ -96,9 +97,6 @@ fn dispatch_script_command() {
     fs::create_dir_all(&scripts_dir).unwrap();
     let script_path = scripts_dir.join("greet.sh");
     fs::write(&script_path, "#!/bin/sh\necho \"hello from script\"\n").unwrap();
-
-    // Make executable
-    use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).unwrap();
 
     let yaml = r#"
@@ -126,6 +124,8 @@ commands:
 #[test]
 #[cfg(unix)]
 fn dispatch_path_command() {
+    use std::os::unix::fs::PermissionsExt;
+
     let workspace = TempDir::new().unwrap();
     fs::create_dir_all(workspace.path().join(".east")).unwrap();
     fs::write(workspace.path().join("east.yml"), "version: 1\n").unwrap();
@@ -134,7 +134,6 @@ fn dispatch_path_command() {
     let bin_dir = TempDir::new().unwrap();
     let tool_path = bin_dir.path().join("east-mytool");
     fs::write(&tool_path, "#!/bin/sh\necho \"from-path-tool $@\"\n").unwrap();
-    use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(&tool_path, fs::Permissions::from_mode(0o755)).unwrap();
 
     let config_home = TempDir::new().unwrap();

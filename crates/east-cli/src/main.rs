@@ -3,8 +3,12 @@
 
 use std::path::{Path, PathBuf};
 
+use std::collections::BTreeMap;
+
 use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
+use east_command::registry::{CommandRegistry, CommandSource};
+use east_command::template::TemplateEngine;
 use east_config::path::DefaultPathProvider;
 use east_config::{Config, ConfigLayer, ConfigValue};
 use east_manifest::Manifest;
@@ -30,6 +34,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[command(allow_external_subcommands = true)]
 enum Commands {
     /// Initialize a new east workspace from a manifest.
     Init {
@@ -53,6 +58,9 @@ enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// External/extension command (captured by `allow_external_subcommands`).
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
 #[derive(Subcommand)]
@@ -125,6 +133,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             }
         }
         Commands::Config { action } => cmd_config(action),
+        Commands::External(args) => cmd_external(&args).await,
     }
 }
 
@@ -386,4 +395,190 @@ fn parse_layer(s: &str) -> anyhow::Result<ConfigLayer> {
         "workspace" => Ok(ConfigLayer::Workspace),
         _ => bail!("unknown layer: {s} (expected: system, global, workspace)"),
     }
+}
+
+async fn cmd_external(args: &[String]) -> anyhow::Result<()> {
+    let cmd_name = args.first().context("missing command name")?;
+    let extra_args = &args[1..];
+
+    let ws =
+        Workspace::discover(&std::env::current_dir()?).context("not inside an east workspace")?;
+    let manifest_path = ws.manifest_path();
+    let manifest = Manifest::resolve(&manifest_path).context("failed to resolve manifest")?;
+
+    // Build command registry
+    let mut registry = CommandRegistry::from_manifest(&manifest);
+    if let Ok(path_env) = std::env::var("PATH") {
+        registry.discover_path(&path_env);
+    }
+
+    let resolved = registry
+        .get(cmd_name)
+        .ok_or_else(|| anyhow::anyhow!("unknown command: {cmd_name}"))?;
+
+    // Build template variables
+    let mut vars = BTreeMap::new();
+    vars.insert(
+        "workspace.root".to_string(),
+        ws.root().to_string_lossy().into_owned(),
+    );
+    vars.insert(
+        "workspace.manifest".to_string(),
+        ws.manifest_path().to_string_lossy().into_owned(),
+    );
+
+    // Add config variables
+    let provider = DefaultPathProvider::new(Some(ws.root().to_path_buf()));
+    if let Ok(config) = Config::load_with_provider(&provider) {
+        for (key, value) in config.iter() {
+            vars.insert(format!("config.{key}"), value.to_string());
+        }
+    }
+
+    // Add env variables
+    for (key, value) in std::env::vars() {
+        vars.insert(format!("env.{key}"), value);
+    }
+
+    match &resolved.source {
+        CommandSource::Manifest => {
+            let decl = resolved
+                .decl
+                .as_ref()
+                .expect("manifest command should have decl");
+            dispatch_manifest_command(decl, &vars, ws.root(), extra_args).await
+        }
+        CommandSource::Path { executable } => {
+            let status = tokio::process::Command::new(executable)
+                .args(extra_args)
+                .current_dir(ws.root())
+                .status()
+                .await
+                .context(format!("failed to run {}", executable.display()))?;
+            if status.success() {
+                Ok(())
+            } else {
+                bail!(
+                    "command '{}' exited with {}",
+                    cmd_name,
+                    status.code().unwrap_or(-1)
+                );
+            }
+        }
+    }
+}
+
+async fn dispatch_manifest_command(
+    decl: &east_manifest::CommandDecl,
+    vars: &BTreeMap<String, String>,
+    workspace_root: &Path,
+    extra_args: &[String],
+) -> anyhow::Result<()> {
+    let engine = TemplateEngine::new();
+
+    // Determine working directory
+    let work_dir = if let Some(cwd_template) = &decl.cwd {
+        let rendered = engine
+            .render(cwd_template, vars, "command cwd")
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        PathBuf::from(rendered)
+    } else {
+        workspace_root.to_path_buf()
+    };
+
+    if let Some(exec_str) = &decl.exec {
+        // Render template
+        let rendered = engine
+            .render(exec_str, vars, &format!("command '{}' exec", decl.name))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+        // Shell out
+        #[cfg(unix)]
+        let mut cmd = {
+            let mut c = tokio::process::Command::new("sh");
+            c.arg("-c").arg(&rendered);
+            c
+        };
+        #[cfg(windows)]
+        let mut cmd = {
+            let mut c = tokio::process::Command::new("cmd");
+            c.arg("/C").arg(&rendered);
+            c
+        };
+
+        cmd.current_dir(&work_dir);
+        // Add extra args to the command
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+        // Set env vars
+        for (key, value) in &decl.env {
+            let rendered_val = engine
+                .render(value, vars, &format!("command '{}' env.{key}", decl.name))
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            cmd.env(key, rendered_val);
+        }
+
+        let status = cmd.status().await.context("failed to spawn exec command")?;
+        if !status.success() {
+            bail!(
+                "command '{}' exited with {}",
+                decl.name,
+                status.code().unwrap_or(-1)
+            );
+        }
+    } else if let Some(script_path) = &decl.script {
+        // Script path is relative to the manifest that declared it
+        // For now, resolve relative to workspace root (since we only have top-level manifest in Phase 2)
+        let resolved_script = workspace_root.join(script_path);
+        let mut cmd = tokio::process::Command::new(&resolved_script);
+        cmd.current_dir(&work_dir);
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+        for (key, value) in &decl.env {
+            let rendered_val = engine
+                .render(value, vars, &format!("command '{}' env.{key}", decl.name))
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            cmd.env(key, rendered_val);
+        }
+
+        let status = cmd
+            .status()
+            .await
+            .context("failed to spawn script command")?;
+        if !status.success() {
+            bail!(
+                "command '{}' exited with {}",
+                decl.name,
+                status.code().unwrap_or(-1)
+            );
+        }
+    } else if let Some(executable_name) = &decl.executable {
+        let mut cmd = tokio::process::Command::new(executable_name);
+        cmd.current_dir(&work_dir);
+        for arg in extra_args {
+            cmd.arg(arg);
+        }
+        for (key, value) in &decl.env {
+            let rendered_val = engine
+                .render(value, vars, &format!("command '{}' env.{key}", decl.name))
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            cmd.env(key, rendered_val);
+        }
+
+        let status = cmd
+            .status()
+            .await
+            .context(format!("failed to spawn {executable_name}"))?;
+        if !status.success() {
+            bail!(
+                "command '{}' exited with {}",
+                decl.name,
+                status.code().unwrap_or(-1)
+            );
+        }
+    }
+
+    Ok(())
 }
