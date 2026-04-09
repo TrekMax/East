@@ -5,6 +5,7 @@
 //! and workspace-level TOML files. Higher-precedence layers override
 //! lower ones on a per-key basis.
 
+pub mod error;
 mod store;
 mod value;
 
@@ -204,7 +205,9 @@ parallelism = 8
             Some("t@e.com")
         );
         assert_eq!(
-            store.get("update.parallelism").and_then(ConfigValue::as_i64),
+            store
+                .get("update.parallelism")
+                .and_then(ConfigValue::as_i64),
             Some(8)
         );
     }
@@ -224,10 +227,10 @@ user.email = "t@e.com"
 
     #[test]
     fn store_from_toml_with_bool_and_float() {
-        let toml = r#"
+        let toml = r"
 feature.enabled = true
 feature.threshold = 1.5
-"#;
+";
         let store = ConfigStore::from_toml_str(toml).unwrap();
         assert_eq!(
             store.get("feature.enabled").and_then(ConfigValue::as_bool),
@@ -255,7 +258,9 @@ feature.threshold = 1.5
             Some("trekmax")
         );
         assert_eq!(
-            store2.get("update.parallelism").and_then(ConfigValue::as_i64),
+            store2
+                .get("update.parallelism")
+                .and_then(ConfigValue::as_i64),
             Some(4)
         );
         assert_eq!(
@@ -281,10 +286,7 @@ feature.threshold = 1.5
             loaded.get("user.name").and_then(ConfigValue::as_str),
             Some("trekmax")
         );
-        assert_eq!(
-            loaded.get("level").and_then(ConfigValue::as_i64),
-            Some(42)
-        );
+        assert_eq!(loaded.get("level").and_then(ConfigValue::as_i64), Some(42));
     }
 
     #[test]

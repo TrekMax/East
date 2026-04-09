@@ -1,5 +1,8 @@
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
 
+use crate::error::ConfigError;
 use crate::value::ConfigValue;
 
 /// An in-memory configuration store using nested `BTreeMap`s.
@@ -57,6 +60,57 @@ impl ConfigStore {
     /// values in `self` on a per-key basis (deep merge).
     pub fn merge(&mut self, other: &Self) {
         Self::merge_maps(&mut self.root, &other.root);
+    }
+
+    /// Parse a TOML string into a `ConfigStore`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::TomlParse`] if the TOML is invalid.
+    pub fn from_toml_str(toml_str: &str) -> Result<Self, ConfigError> {
+        let table: toml::Table = toml::from_str(toml_str)?;
+        let mut store = Self::new();
+        Self::import_toml_table(&mut store.root, &table);
+        Ok(store)
+    }
+
+    /// Serialize this store to a TOML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::TomlSerialize`] on serialization failure.
+    pub fn to_toml_string(&self) -> Result<String, ConfigError> {
+        let table = Self::export_toml_table(&self.root);
+        Ok(toml::to_string_pretty(&table)?)
+    }
+
+    /// Load a `ConfigStore` from a TOML file.
+    ///
+    /// Returns an empty store if the file does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] on I/O or parse errors.
+    pub fn load_from_file(path: &Path) -> Result<Self, ConfigError> {
+        if !path.exists() {
+            return Ok(Self::new());
+        }
+        let content = fs::read_to_string(path)?;
+        Self::from_toml_str(&content)
+    }
+
+    /// Save this store to a TOML file, creating parent directories as needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] on I/O or serialization errors.
+    pub fn save_to_file(&self, path: &Path) -> Result<(), ConfigError> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let content = self.to_toml_string()?;
+        fs::write(path, content)?;
+        Ok(())
     }
 
     // ── private helpers ─────────────────────────────────────────────
@@ -143,6 +197,59 @@ impl ConfigStore {
                 }
             }
         }
+    }
+
+    fn import_toml_table(map: &mut BTreeMap<String, Node>, table: &toml::Table) {
+        for (key, value) in table {
+            match value {
+                toml::Value::Table(sub) => {
+                    let mut children = BTreeMap::new();
+                    Self::import_toml_table(&mut children, sub);
+                    map.insert(key.clone(), Node::Branch(children));
+                }
+                toml::Value::String(s) => {
+                    map.insert(key.clone(), Node::Leaf(ConfigValue::String(s.clone())));
+                }
+                toml::Value::Integer(i) => {
+                    map.insert(key.clone(), Node::Leaf(ConfigValue::Integer(*i)));
+                }
+                toml::Value::Float(f) => {
+                    map.insert(key.clone(), Node::Leaf(ConfigValue::Float(*f)));
+                }
+                toml::Value::Boolean(b) => {
+                    map.insert(key.clone(), Node::Leaf(ConfigValue::Boolean(*b)));
+                }
+                // Arrays and datetimes are not supported in config; skip silently
+                _ => {}
+            }
+        }
+    }
+
+    fn export_toml_table(map: &BTreeMap<String, Node>) -> toml::Table {
+        let mut table = toml::Table::new();
+        for (key, node) in map {
+            match node {
+                Node::Leaf(ConfigValue::String(s)) => {
+                    table.insert(key.clone(), toml::Value::String(s.clone()));
+                }
+                Node::Leaf(ConfigValue::Integer(i)) => {
+                    table.insert(key.clone(), toml::Value::Integer(*i));
+                }
+                Node::Leaf(ConfigValue::Float(f)) => {
+                    table.insert(key.clone(), toml::Value::Float(*f));
+                }
+                Node::Leaf(ConfigValue::Boolean(b)) => {
+                    table.insert(key.clone(), toml::Value::Boolean(*b));
+                }
+                Node::Branch(children) => {
+                    table.insert(
+                        key.clone(),
+                        toml::Value::Table(Self::export_toml_table(children)),
+                    );
+                }
+            }
+        }
+        table
     }
 }
 
