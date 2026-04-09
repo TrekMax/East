@@ -225,7 +225,12 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
             let _permit = sem.acquire().await.expect("semaphore closed");
             pb.set_message(format!("{project_name}: starting..."));
 
-            let result = if project_path.exists() {
+            // A directory may exist without being a git repo (e.g. parent
+            // dirs created by sibling project clones). Treat non-repo dirs
+            // as needing a fresh clone.
+            let is_git_repo = project_path.join(".git").exists();
+
+            let result = if is_git_repo {
                 // Already cloned: fetch + checkout
                 pb.set_message(format!("{project_name}: fetching..."));
                 Git::fetch(&project_path).await?;
@@ -235,9 +240,16 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
                 }
                 Ok(())
             } else if let Some(url) = &clone_url {
-                // Clone
-                pb.set_message(format!("{project_name}: cloning..."));
-                Git::clone(url, &project_path, revision.as_deref()).await
+                if project_path.exists() {
+                    // Directory exists but is not a git repo (created by
+                    // sibling clones); use init+fetch instead of clone.
+                    pb.set_message(format!("{project_name}: initializing..."));
+                    Git::init_and_fetch(url, &project_path, revision.as_deref()).await
+                } else {
+                    // Clone
+                    pb.set_message(format!("{project_name}: cloning..."));
+                    Git::clone(url, &project_path, revision.as_deref()).await
+                }
             } else {
                 Err(east_vcs::error::VcsError::GitFailed {
                     path: project_path.clone(),

@@ -49,6 +49,44 @@ impl Git {
         Ok(())
     }
 
+    /// Initialize a git repo in an existing non-empty directory, add the
+    /// remote, fetch, and checkout.
+    ///
+    /// This handles the case where sibling project clones have already created
+    /// subdirectories inside the target path, so `git clone` would refuse.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if any git command fails.
+    pub async fn init_and_fetch(
+        url: &str,
+        dest: &Path,
+        revision: Option<&str>,
+    ) -> Result<(), VcsError> {
+        // git init
+        let mut cmd = Command::new("git");
+        cmd.arg("init");
+        cmd.arg(dest);
+        run_git(cmd, dest).await?;
+
+        // git remote add origin <url>
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(dest);
+        cmd.args(["remote", "add", "origin", url]);
+        run_git(cmd, dest).await?;
+
+        // git fetch origin
+        Self::fetch(dest).await?;
+
+        // git checkout
+        if let Some(rev) = revision {
+            Self::checkout(dest, rev).await?;
+        }
+
+        Ok(())
+    }
+
     /// Fetch from origin in the repository at `repo_path`.
     ///
     /// # Errors
