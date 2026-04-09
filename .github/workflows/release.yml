@@ -38,7 +38,7 @@ jobs:
             os: windows-latest
             artifact: east.exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -75,7 +75,7 @@ jobs:
           7z a ../../../east-${{ matrix.target }}.zip ${{ matrix.artifact }}
           cd ../../..
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: east-${{ matrix.target }}
           path: east-${{ matrix.target }}.*
@@ -86,10 +86,10 @@ jobs:
     needs: build
     runs-on: macos-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: east-x86_64-apple-darwin
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: east-aarch64-apple-darwin
 
@@ -102,7 +102,7 @@ jobs:
           lipo -create east-x86_64 east-aarch64 -output east
           tar czf east-universal-apple-darwin.tar.gz east
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: east-universal-apple-darwin
           path: east-universal-apple-darwin.tar.gz
@@ -112,11 +112,11 @@ jobs:
     needs: [build, macos-universal]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -227,7 +227,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@master
         with:
