@@ -2,8 +2,10 @@
 //! `.east/` directory, workspace discovery, and state for east.
 
 pub mod error;
+pub mod state;
 mod workspace;
 
+pub use state::State;
 pub use workspace::Workspace;
 
 #[cfg(test)]
@@ -162,8 +164,7 @@ mod tests {
 
         let err = State::load_from_file(&path).unwrap_err();
         assert!(
-            err.to_string().contains("schema")
-                || err.to_string().contains("version"),
+            err.to_string().contains("schema") || err.to_string().contains("version"),
             "error should mention schema version: {err}"
         );
     }
