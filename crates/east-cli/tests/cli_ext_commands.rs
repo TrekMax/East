@@ -1,6 +1,7 @@
 //! Integration tests for extension command dispatch.
 
 use std::fs;
+use std::path::Path;
 
 use assert_cmd::Command as AssertCmd;
 use predicates::prelude::*;
@@ -13,6 +14,14 @@ fn setup_workspace_with_commands(manifest_yaml: &str) -> (TempDir, TempDir) {
     fs::write(workspace.path().join("east.yml"), manifest_yaml).unwrap();
     let config_home = TempDir::new().unwrap();
     (workspace, config_home)
+}
+
+/// Build an east command with config dir isolation for all platforms.
+fn east_cmd(config_home: &Path) -> AssertCmd {
+    let mut cmd = AssertCmd::cargo_bin("east").unwrap();
+    cmd.env("XDG_CONFIG_HOME", config_home);
+    cmd.env("APPDATA", config_home);
+    cmd
 }
 
 // ── exec commands ───────────────────────────────────────────────────
@@ -28,11 +37,9 @@ commands:
 "#;
     let (workspace, config_home) = setup_workspace_with_commands(yaml);
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["hello"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("hello-from-east"));
@@ -49,11 +56,9 @@ commands:
 "#;
     let (workspace, config_home) = setup_workspace_with_commands(yaml);
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["show-root"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("root="));
@@ -72,11 +77,9 @@ commands:
 "#;
     let (workspace, config_home) = setup_workspace_with_commands(yaml);
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["show-env"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("MY_VAR=hello-env"));
@@ -109,11 +112,9 @@ commands:
     fs::write(workspace.path().join("east.yml"), yaml).unwrap();
     let config_home = TempDir::new().unwrap();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["greet"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("hello from script"));
@@ -143,11 +144,9 @@ fn dispatch_path_command() {
         std::env::var("PATH").unwrap_or_default()
     );
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["mytool", "--some-flag"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .env("PATH", &path_env)
         .assert()
         .success()
@@ -160,11 +159,9 @@ fn dispatch_path_command() {
 fn unknown_command_fails() {
     let (workspace, config_home) = setup_workspace_with_commands("version: 1\n");
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["nonexistent-cmd"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .failure();
 }

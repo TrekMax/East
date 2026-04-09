@@ -1,6 +1,7 @@
 //! Integration tests for `east config` subcommand.
 
 use std::fs;
+use std::path::Path;
 
 use assert_cmd::Command as AssertCmd;
 use predicates::prelude::*;
@@ -16,25 +17,28 @@ fn setup_workspace() -> (TempDir, TempDir) {
     (workspace, config_home)
 }
 
+/// Build an east command with config dir isolation for all platforms.
+/// Sets both `XDG_CONFIG_HOME` (Unix) and `APPDATA` (Windows).
+fn east_cmd(config_home: &Path) -> AssertCmd {
+    let mut cmd = AssertCmd::cargo_bin("east").unwrap();
+    cmd.env("XDG_CONFIG_HOME", config_home);
+    cmd.env("APPDATA", config_home);
+    cmd
+}
+
 #[test]
 fn config_set_and_get_string() {
     let (workspace, config_home) = setup_workspace();
 
-    // Set a value
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "set", "user.name", "trekmax"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    // Get the value
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "get", "user.name"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("trekmax"));
@@ -44,19 +48,15 @@ fn config_set_and_get_string() {
 fn config_set_int() {
     let (workspace, config_home) = setup_workspace();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "set", "--int", "update.parallelism", "16"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "get", "update.parallelism"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("16"));
@@ -66,19 +66,15 @@ fn config_set_int() {
 fn config_set_bool() {
     let (workspace, config_home) = setup_workspace();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "set", "--bool", "feature.enabled", "true"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "get", "feature.enabled"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("true"));
@@ -88,29 +84,21 @@ fn config_set_bool() {
 fn config_unset() {
     let (workspace, config_home) = setup_workspace();
 
-    // Set then unset
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "set", "user.name", "trekmax"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "unset", "user.name"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    // Get should fail or show nothing
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "get", "user.name"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .failure();
 }
@@ -119,27 +107,21 @@ fn config_unset() {
 fn config_list() {
     let (workspace, config_home) = setup_workspace();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "set", "user.name", "trekmax"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "set", "user.email", "t@e.com"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "list"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("user.name"))
@@ -150,11 +132,9 @@ fn config_list() {
 fn config_get_missing_key_fails() {
     let (workspace, config_home) = setup_workspace();
 
-    AssertCmd::cargo_bin("east")
-        .unwrap()
+    east_cmd(config_home.path())
         .args(["config", "get", "nonexistent.key"])
         .current_dir(workspace.path())
-        .env("XDG_CONFIG_HOME", config_home.path())
         .assert()
         .failure();
 }
