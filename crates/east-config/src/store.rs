@@ -1,0 +1,153 @@
+use std::collections::BTreeMap;
+
+use crate::value::ConfigValue;
+
+/// An in-memory configuration store using nested `BTreeMap`s.
+///
+/// Keys are dotted paths (e.g. `"user.name"`). Internally the store
+/// is a tree of `Node`s — branches hold child nodes, leaves hold values.
+#[derive(Debug, Clone)]
+#[allow(clippy::module_name_repetitions)]
+pub struct ConfigStore {
+    root: BTreeMap<String, Node>,
+}
+
+#[derive(Debug, Clone)]
+enum Node {
+    Leaf(ConfigValue),
+    Branch(BTreeMap<String, Node>),
+}
+
+impl ConfigStore {
+    /// Create an empty store.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            root: BTreeMap::new(),
+        }
+    }
+
+    /// Get a value by dotted key (e.g. `"user.name"`).
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&ConfigValue> {
+        let segments: Vec<&str> = key.split('.').collect();
+        Self::get_in(&self.root, &segments)
+    }
+
+    /// Set a value at a dotted key, creating intermediate nodes as needed.
+    pub fn set(&mut self, key: &str, value: ConfigValue) {
+        let segments: Vec<&str> = key.split('.').collect();
+        Self::set_in(&mut self.root, &segments, value);
+    }
+
+    /// Remove a value at a dotted key. No-op if the key does not exist.
+    pub fn unset(&mut self, key: &str) {
+        let segments: Vec<&str> = key.split('.').collect();
+        Self::unset_in(&mut self.root, &segments);
+    }
+
+    /// Iterate over all leaf entries as `(dotted_key, value)` pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (String, &ConfigValue)> {
+        let mut result = Vec::new();
+        Self::collect_leaves(&self.root, "", &mut result);
+        result.into_iter()
+    }
+
+    /// Merge another store into this one. Values from `other` override
+    /// values in `self` on a per-key basis (deep merge).
+    pub fn merge(&mut self, other: &Self) {
+        Self::merge_maps(&mut self.root, &other.root);
+    }
+
+    // ── private helpers ─────────────────────────────────────────────
+
+    fn get_in<'a>(map: &'a BTreeMap<String, Node>, segments: &[&str]) -> Option<&'a ConfigValue> {
+        match segments {
+            [] => None,
+            [last] => match map.get(*last) {
+                Some(Node::Leaf(v)) => Some(v),
+                _ => None,
+            },
+            [head, tail @ ..] => match map.get(*head) {
+                Some(Node::Branch(children)) => Self::get_in(children, tail),
+                _ => None,
+            },
+        }
+    }
+
+    fn set_in(map: &mut BTreeMap<String, Node>, segments: &[&str], value: ConfigValue) {
+        match segments {
+            [] => {}
+            [last] => {
+                map.insert((*last).to_string(), Node::Leaf(value));
+            }
+            [head, tail @ ..] => {
+                let entry = map
+                    .entry((*head).to_string())
+                    .or_insert_with(|| Node::Branch(BTreeMap::new()));
+                match entry {
+                    Node::Branch(children) => Self::set_in(children, tail, value),
+                    Node::Leaf(_) => {
+                        // Overwrite leaf with branch
+                        let mut children = BTreeMap::new();
+                        Self::set_in(&mut children, tail, value);
+                        *entry = Node::Branch(children);
+                    }
+                }
+            }
+        }
+    }
+
+    fn unset_in(map: &mut BTreeMap<String, Node>, segments: &[&str]) {
+        match segments {
+            [] => {}
+            [last] => {
+                map.remove(*last);
+            }
+            [head, tail @ ..] => {
+                if let Some(Node::Branch(children)) = map.get_mut(*head) {
+                    Self::unset_in(children, tail);
+                }
+            }
+        }
+    }
+
+    fn collect_leaves<'a>(
+        map: &'a BTreeMap<String, Node>,
+        prefix: &str,
+        result: &mut Vec<(String, &'a ConfigValue)>,
+    ) {
+        for (key, node) in map {
+            let full_key = if prefix.is_empty() {
+                key.clone()
+            } else {
+                format!("{prefix}.{key}")
+            };
+            match node {
+                Node::Leaf(v) => result.push((full_key, v)),
+                Node::Branch(children) => {
+                    Self::collect_leaves(children, &full_key, result);
+                }
+            }
+        }
+    }
+
+    fn merge_maps(base: &mut BTreeMap<String, Node>, overlay: &BTreeMap<String, Node>) {
+        for (key, overlay_node) in overlay {
+            match (base.get_mut(key), overlay_node) {
+                (Some(Node::Branch(base_children)), Node::Branch(overlay_children)) => {
+                    Self::merge_maps(base_children, overlay_children);
+                }
+                _ => {
+                    base.insert(key.clone(), overlay_node.clone());
+                }
+            }
+        }
+    }
+}
+
+impl Default for ConfigStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}

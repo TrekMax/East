@@ -5,6 +5,12 @@
 //! and workspace-level TOML files. Higher-precedence layers override
 //! lower ones on a per-key basis.
 
+mod store;
+mod value;
+
+pub use store::ConfigStore;
+pub use value::ConfigValue;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -35,9 +41,9 @@ mod tests {
 
     #[test]
     fn config_value_float() {
-        let v = ConfigValue::Float(3.14);
+        let v = ConfigValue::Float(1.5);
         let f = v.as_f64().unwrap();
-        assert!((f - 3.14).abs() < f64::EPSILON);
+        assert!((f - 1.5).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -64,7 +70,10 @@ mod tests {
     fn store_set_and_get_simple_key() {
         let mut store = ConfigStore::new();
         store.set("name", ConfigValue::String("east".into()));
-        assert_eq!(store.get("name").and_then(ConfigValue::as_str), Some("east"));
+        assert_eq!(
+            store.get("name").and_then(ConfigValue::as_str),
+            Some("east")
+        );
     }
 
     #[test]
@@ -138,10 +147,8 @@ mod tests {
         store.set("user.email", ConfigValue::String("t@e.com".into()));
         store.set("update.parallelism", ConfigValue::Integer(4));
 
-        let mut entries: Vec<(String, String)> = store
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
+        let mut entries: Vec<(String, String)> =
+            store.iter().map(|(k, v)| (k, v.to_string())).collect();
         entries.sort();
 
         assert_eq!(entries.len(), 3);
@@ -172,9 +179,6 @@ mod tests {
             base.get("user.email").and_then(ConfigValue::as_str),
             Some("base@e.com")
         );
-        assert_eq!(
-            base.get("extra.key").and_then(ConfigValue::as_i64),
-            Some(1)
-        );
+        assert_eq!(base.get("extra.key").and_then(ConfigValue::as_i64), Some(1));
     }
 }
