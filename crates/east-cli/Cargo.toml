@@ -17,6 +17,8 @@ east-manifest = { path = "../east-manifest" }
 east-vcs = { path = "../east-vcs" }
 east-workspace = { path = "../east-workspace" }
 indicatif = "0.17"
+serde_yaml = "0.9"
+tempfile = ">=3.10, <3.19"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

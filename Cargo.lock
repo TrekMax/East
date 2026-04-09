@@ -211,6 +211,7 @@ dependencies = [
  "east-workspace",
  "indicatif",
  "predicates",
+ "serde_yaml",
  "tempfile",
  "tokio",
  "tracing",
