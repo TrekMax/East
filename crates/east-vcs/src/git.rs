@@ -159,6 +159,33 @@ impl Git {
         Ok(!output.is_empty())
     }
 
+    /// Sparse-checkout a single file from a remote repository.
+    ///
+    /// Uses `--depth 1 --filter=blob:none --sparse` to avoid downloading
+    /// the full repo, then `sparse-checkout set` to fetch only the
+    /// requested file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if any git command fails.
+    pub async fn fetch_file(url: &str, file: &str, dest: &Path) -> Result<(), VcsError> {
+        // git clone --depth 1 --filter=blob:none --sparse <url> <dest>
+        let mut cmd = Command::new("git");
+        cmd.args(["clone", "--depth", "1", "--filter=blob:none", "--sparse"]);
+        cmd.arg(url);
+        cmd.arg(dest);
+        run_git(cmd, dest).await?;
+
+        // git -C <dest> sparse-checkout set <file>
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(dest);
+        cmd.args(["sparse-checkout", "set", file]);
+        run_git(cmd, dest).await?;
+
+        Ok(())
+    }
+
     /// Get the remote URL for origin.
     ///
     /// # Errors

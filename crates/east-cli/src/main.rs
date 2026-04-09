@@ -156,19 +156,19 @@ async fn cmd_init(manifest_source: &str) -> miette::Result<()> {
             .into_diagnostic()
             .wrap_err("failed to copy manifest file")?;
     } else {
-        // Treat as a git URL: clone to a temp dir, extract east.yml
+        // Treat as a git URL: sparse-checkout only east.yml
         let temp_dir = tempfile::tempdir()
             .into_diagnostic()
             .wrap_err("failed to create temp dir")?;
         let clone_dest = temp_dir.path().join("manifest");
-        Git::clone(manifest_source, &clone_dest, None)
+        Git::fetch_file(manifest_source, "east.yml", &clone_dest)
             .await
             .into_diagnostic()
-            .wrap_err("failed to clone manifest repository")?;
+            .wrap_err("failed to fetch east.yml from manifest repository")?;
 
         let source_manifest = clone_dest.join("east.yml");
         if !source_manifest.exists() {
-            bail!("no east.yml found in cloned manifest repository");
+            bail!("no east.yml found in manifest repository");
         }
         std::fs::copy(&source_manifest, cwd.join("east.yml"))
             .into_diagnostic()
