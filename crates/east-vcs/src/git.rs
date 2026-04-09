@@ -15,21 +15,38 @@ pub struct Git;
 impl Git {
     /// Clone a repository into `dest`.
     ///
-    /// If `revision` is provided, clones only that branch with `--single-branch`.
+    /// If `revision` is provided and looks like a branch/tag name, clones only
+    /// that branch with `--single-branch -b`. If `revision` looks like a full
+    /// hex SHA, clones without `--single-branch` and then checks out the SHA.
     ///
     /// # Errors
     ///
     /// Returns [`VcsError`] if the git command fails.
     pub async fn clone(url: &str, dest: &Path, revision: Option<&str>) -> Result<(), VcsError> {
+        let is_sha = revision.is_some_and(|r| {
+            r.len() >= 40 && r.chars().all(|c| c.is_ascii_hexdigit())
+        });
+
         let mut cmd = Command::new("git");
         cmd.arg("clone");
         if let Some(rev) = revision {
-            cmd.args(["--single-branch", "-b", rev]);
+            if !is_sha {
+                cmd.args(["--single-branch", "-b", rev]);
+            }
         }
         cmd.arg(url);
         cmd.arg(dest);
 
-        run_git(cmd, dest).await
+        run_git(cmd, dest).await?;
+
+        // For SHA revisions, checkout the specific commit after cloning
+        if is_sha {
+            if let Some(rev) = revision {
+                Self::checkout(dest, rev).await?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Fetch from origin in the repository at `repo_path`.
