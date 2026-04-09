@@ -21,6 +21,7 @@ repository = "https://github.com/TrekMax/East"
 [workspace.dependencies]
 # Pinned below 4.5.24: clap 4.5.24+ depends on clap_lex >=1.0 which requires edition 2024
 clap = { version = ">=4.4, <4.5.24", features = ["derive"] }
+glob = "0.3"
 glob-match = "0.2"
 indicatif = "0.17"
 # Pinned below 7.5: future miette versions may require edition 2024 transitive deps
