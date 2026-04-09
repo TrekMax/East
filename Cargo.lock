@@ -222,6 +222,13 @@ dependencies = [
 [[package]]
 name = "east-command"
 version = "0.0.1"
+dependencies = [
+ "east-config",
+ "east-manifest",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
 
 [[package]]
 name = "east-config"
