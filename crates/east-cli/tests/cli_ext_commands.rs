@@ -65,7 +65,10 @@ commands:
 }
 
 #[test]
+#[cfg(unix)]
 fn dispatch_exec_command_with_env() {
+    // This test uses $MY_VAR shell expansion syntax which is Unix-only.
+    // The env var injection itself is cross-platform; only the echo syntax differs.
     let yaml = r#"
 version: 1
 commands:

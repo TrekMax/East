@@ -451,7 +451,7 @@ async fn cmd_external(args: &[String]) -> anyhow::Result<()> {
         CommandSource::Path { executable } => {
             let status = tokio::process::Command::new(executable)
                 .args(extra_args)
-                .current_dir(ws.root())
+                .current_dir(strip_unc_prefix(ws.root()))
                 .status()
                 .await
                 .context(format!("failed to run {}", executable.display()))?;
@@ -485,6 +485,7 @@ async fn dispatch_manifest_command(
     } else {
         workspace_root.to_path_buf()
     };
+    let work_dir = strip_unc_prefix(&work_dir);
 
     if let Some(exec_str) = &decl.exec {
         // Render template
@@ -581,4 +582,15 @@ async fn dispatch_manifest_command(
     }
 
     Ok(())
+}
+
+/// Strip the `\\?\` extended-length prefix from Windows paths.
+///
+/// `cmd.exe` cannot use UNC paths as a working directory. Since
+/// `std::fs::canonicalize` produces `\\?\` paths on Windows, we strip
+/// the prefix before passing paths to child processes.
+fn strip_unc_prefix(path: &Path) -> PathBuf {
+    let s = path.to_string_lossy();
+    s.strip_prefix(r"\\?\")
+        .map_or_else(|| path.to_path_buf(), PathBuf::from)
 }
