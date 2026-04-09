@@ -1,6 +1,10 @@
 #![forbid(unsafe_code)]
 //! Manifest data model, YAML parsing, and import resolution for east.
 
+mod model;
+
+pub use model::{Defaults, Import, Manifest, Project, Remote};
+
 #[cfg(test)]
 mod tests {
     use super::*;
