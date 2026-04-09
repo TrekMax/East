@@ -304,4 +304,166 @@ feature.threshold = 1.5
         let result = ConfigStore::from_toml_str(toml);
         assert!(result.is_err());
     }
+
+    // ── Three-layer merge + PathProvider (P2-06/08) ─────────────────
+
+    #[test]
+    fn config_load_merges_three_layers() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let system_path = dir.path().join("system/config.toml");
+        let global_path = dir.path().join("global/config.toml");
+        let workspace_path = dir.path().join("ws/.east/config.toml");
+
+        // System: lowest precedence
+        let mut system = ConfigStore::new();
+        system.set("user.name", ConfigValue::String("system-user".into()));
+        system.set("update.parallelism", ConfigValue::Integer(2));
+        system.set("system.only", ConfigValue::Boolean(true));
+        system.save_to_file(&system_path).unwrap();
+
+        // Global: middle precedence
+        let mut global = ConfigStore::new();
+        global.set("user.name", ConfigValue::String("global-user".into()));
+        global.set("user.email", ConfigValue::String("g@e.com".into()));
+        global.save_to_file(&global_path).unwrap();
+
+        // Workspace: highest precedence
+        let mut ws = ConfigStore::new();
+        ws.set("user.name", ConfigValue::String("ws-user".into()));
+        ws.save_to_file(&workspace_path).unwrap();
+
+        let paths = TestPathProvider {
+            system: Some(system_path),
+            global: Some(global_path),
+            workspace: Some(workspace_path),
+        };
+        let config = Config::load_with_provider(&paths).unwrap();
+
+        // Workspace wins for user.name
+        assert_eq!(config.get_str("user.name"), Some("ws-user"));
+        // Global contributes user.email
+        assert_eq!(config.get_str("user.email"), Some("g@e.com"));
+        // System contributes update.parallelism
+        assert_eq!(config.get_i64("update.parallelism"), Some(2));
+        // System contributes system.only
+        assert_eq!(config.get_bool("system.only"), Some(true));
+    }
+
+    #[test]
+    fn config_load_skips_missing_layers() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let global_path = dir.path().join("global/config.toml");
+
+        let mut global = ConfigStore::new();
+        global.set("user.name", ConfigValue::String("global".into()));
+        global.save_to_file(&global_path).unwrap();
+
+        let paths = TestPathProvider {
+            system: None,
+            global: Some(global_path),
+            workspace: None,
+        };
+        let config = Config::load_with_provider(&paths).unwrap();
+        assert_eq!(config.get_str("user.name"), Some("global"));
+    }
+
+    #[test]
+    fn config_load_empty_when_no_files() {
+        let paths = TestPathProvider {
+            system: None,
+            global: None,
+            workspace: None,
+        };
+        let config = Config::load_with_provider(&paths).unwrap();
+        assert!(config.get_str("anything").is_none());
+    }
+
+    #[test]
+    fn config_set_and_save_to_layer() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let global_path = dir.path().join("global/config.toml");
+
+        let paths = TestPathProvider {
+            system: None,
+            global: Some(global_path.clone()),
+            workspace: None,
+        };
+        let mut config = Config::load_with_provider(&paths).unwrap();
+
+        config.set(ConfigLayer::Global, "user.name", ConfigValue::String("new".into()));
+        config.save(&paths, ConfigLayer::Global).unwrap();
+
+        // Reload and verify
+        let config2 = Config::load_with_provider(&paths).unwrap();
+        assert_eq!(config2.get_str("user.name"), Some("new"));
+    }
+
+    #[test]
+    fn config_unset_and_save() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let global_path = dir.path().join("global/config.toml");
+
+        let mut global = ConfigStore::new();
+        global.set("user.name", ConfigValue::String("existing".into()));
+        global.set("user.email", ConfigValue::String("e@e.com".into()));
+        global.save_to_file(&global_path).unwrap();
+
+        let paths = TestPathProvider {
+            system: None,
+            global: Some(global_path.clone()),
+            workspace: None,
+        };
+        let mut config = Config::load_with_provider(&paths).unwrap();
+
+        config.unset(ConfigLayer::Global, "user.name");
+        config.save(&paths, ConfigLayer::Global).unwrap();
+
+        let config2 = Config::load_with_provider(&paths).unwrap();
+        assert!(config2.get_str("user.name").is_none());
+        assert_eq!(config2.get_str("user.email"), Some("e@e.com"));
+    }
+
+    #[test]
+    fn config_iter_returns_merged_entries() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let system_path = dir.path().join("system/config.toml");
+        let global_path = dir.path().join("global/config.toml");
+
+        let mut system = ConfigStore::new();
+        system.set("a", ConfigValue::String("from-system".into()));
+        system.save_to_file(&system_path).unwrap();
+
+        let mut global = ConfigStore::new();
+        global.set("b", ConfigValue::String("from-global".into()));
+        global.save_to_file(&global_path).unwrap();
+
+        let paths = TestPathProvider {
+            system: Some(system_path),
+            global: Some(global_path),
+            workspace: None,
+        };
+        let config = Config::load_with_provider(&paths).unwrap();
+        let entries: Vec<(String, String)> =
+            config.iter().map(|(k, v)| (k, v.to_string())).collect();
+        assert_eq!(entries.len(), 2);
+    }
+
+    /// Test-only `PathProvider` implementation.
+    struct TestPathProvider {
+        system: Option<std::path::PathBuf>,
+        global: Option<std::path::PathBuf>,
+        workspace: Option<std::path::PathBuf>,
+    }
+
+    impl PathProvider for TestPathProvider {
+        fn system_config_path(&self) -> Option<std::path::PathBuf> {
+            self.system.clone()
+        }
+        fn global_config_path(&self) -> Option<std::path::PathBuf> {
+            self.global.clone()
+        }
+        fn workspace_config_path(&self) -> Option<std::path::PathBuf> {
+            self.workspace.clone()
+        }
+    }
 }
