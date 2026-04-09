@@ -5,16 +5,20 @@
 //! and workspace-level TOML files. Higher-precedence layers override
 //! lower ones on a per-key basis.
 
+mod config;
 pub mod error;
+pub mod path;
 mod store;
 mod value;
 
+pub use config::{Config, ConfigLayer};
 pub use store::ConfigStore;
 pub use value::ConfigValue;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::path::PathProvider;
 
     // ── ConfigValue ─────────────────────────────────────────────────
 
@@ -385,12 +389,16 @@ feature.threshold = 1.5
 
         let paths = TestPathProvider {
             system: None,
-            global: Some(global_path.clone()),
+            global: Some(global_path),
             workspace: None,
         };
         let mut config = Config::load_with_provider(&paths).unwrap();
 
-        config.set(ConfigLayer::Global, "user.name", ConfigValue::String("new".into()));
+        config.set(
+            ConfigLayer::Global,
+            "user.name",
+            ConfigValue::String("new".into()),
+        );
         config.save(&paths, ConfigLayer::Global).unwrap();
 
         // Reload and verify
@@ -410,7 +418,7 @@ feature.threshold = 1.5
 
         let paths = TestPathProvider {
             system: None,
-            global: Some(global_path.clone()),
+            global: Some(global_path),
             workspace: None,
         };
         let mut config = Config::load_with_provider(&paths).unwrap();
@@ -443,9 +451,7 @@ feature.threshold = 1.5
             workspace: None,
         };
         let config = Config::load_with_provider(&paths).unwrap();
-        let entries: Vec<(String, String)> =
-            config.iter().map(|(k, v)| (k, v.to_string())).collect();
-        assert_eq!(entries.len(), 2);
+        assert_eq!(config.iter().count(), 2);
     }
 
     /// Test-only `PathProvider` implementation.
