@@ -1,6 +1,10 @@
 //! Integration tests for script: path resolution relative to declaring manifest.
+//!
+//! These tests use Unix shell scripts, so the entire module is gated to Unix.
+#![cfg(unix)]
 
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 use assert_cmd::Command as AssertCmd;
@@ -17,10 +21,7 @@ fn east_cmd(config_home: &Path) -> AssertCmd {
 /// Test that a script declared in an imported manifest (two dirs deep)
 /// resolves relative to that manifest, not the workspace root.
 #[test]
-#[cfg(unix)]
 fn script_resolves_relative_to_declaring_manifest() {
-    use std::os::unix::fs::PermissionsExt;
-
     let workspace = TempDir::new().unwrap();
     fs::create_dir_all(workspace.path().join(".east")).unwrap();
 
