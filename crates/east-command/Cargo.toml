@@ -7,8 +7,8 @@ repository.workspace = true
 description = "Command trait, extension discovery, and template engine for east"
 
 [dependencies]
-east-config = { path = "../east-config" }
-east-manifest = { path = "../east-manifest" }
+east-config = { version = "0.0.1", path = "../east-config" }
+east-manifest = { version = "0.0.1", path = "../east-manifest" }
 miette.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
