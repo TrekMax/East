@@ -1,0 +1,11 @@
+[package]
+name = "east-cli"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI entrypoint for east"
+
+[[bin]]
+name = "east"
+path = "src/main.rs"

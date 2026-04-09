@@ -1,0 +1,7 @@
+[package]
+name = "east-vcs"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Git operations via shell-out to system git for east"

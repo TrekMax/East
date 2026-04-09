@@ -1,0 +1,7 @@
+[package]
+name = "east-command"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command trait, extension discovery, and template engine for east"

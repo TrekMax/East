@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/east-manifest",
+    "crates/east-vcs",
+    "crates/east-config",
+    "crates/east-workspace",
+    "crates/east-command",
+    "crates/east-runner",
+    "crates/east-build",
+    "crates/east-cli",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/TrekMax/East"

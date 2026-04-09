@@ -1,0 +1,43 @@
+# east
+
+A fast, SDK-agnostic multi-repo and toolchain front-end for MCU/SoC development, written in Rust.
+
+[中文版](README.zh-CN.md)
+
+## Overview
+
+`east` is a general-purpose framework for any MCU SDK that needs:
+
+1. **Multi-repo management** — manifest-driven, with concurrent fetch
+2. **Extension command mechanism** — define custom commands in your manifest
+3. **Layered configuration system** — workspace, user, and project-level TOML config
+4. **Pluggable runner abstraction** — flash / debug / attach / reset via OpenOCD, serial ISP, etc.
+
+Inspired by Zephyr's `west`, but deliberately **not** a `west` clone. `east` is SDK-agnostic and targets RISC-V MCUs as a primary use case.
+
+## Status
+
+**Phase 1** — in progress. Multi-repo management (`east init`, `east update`, `east list`, `east status`, `east manifest --resolve`).
+
+## Building
+
+```bash
+cargo build --release
+```
+
+The output is a single static binary with no Python runtime dependency.
+
+## Supported Platforms
+
+- Linux (x86_64, aarch64)
+- macOS (universal)
+- Windows (x86_64)
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
