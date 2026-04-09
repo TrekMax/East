@@ -1,4 +1,4 @@
-//! Tests for ManifestRelativePath resolve logic.
+//! Tests for `ManifestRelativePath` resolve logic.
 
 use std::fs;
 

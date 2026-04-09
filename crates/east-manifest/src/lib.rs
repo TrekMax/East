@@ -3,6 +3,7 @@
 
 pub mod error;
 mod model;
+pub mod path_resolve;
 mod resolve;
 
 pub use model::{CommandArg, CommandDecl, Defaults, Import, Manifest, Project, Remote};
