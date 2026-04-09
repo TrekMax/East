@@ -10,3 +10,6 @@ description = "Manifest data model, YAML parsing, and import resolution for east
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2"
+
+[dev-dependencies]
+tempfile = ">=3.10, <3.19"
