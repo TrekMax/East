@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
 use east_command::registry::{CommandRegistry, CommandSource};
 use east_command::template::TemplateEngine;
@@ -15,6 +14,7 @@ use east_manifest::Manifest;
 use east_vcs::Git;
 use east_workspace::Workspace;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use miette::{bail, IntoDiagnostic, WrapErr};
 use tokio::sync::Semaphore;
 use tracing::info;
 
@@ -101,7 +101,7 @@ enum ConfigAction {
     List,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> miette::Result<()> {
     let cli = Cli::parse();
 
     // Configure tracing based on verbosity
@@ -115,11 +115,11 @@ fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let runtime = tokio::runtime::Runtime::new()?;
+    let runtime = tokio::runtime::Runtime::new().into_diagnostic()?;
     runtime.block_on(run(cli))
 }
 
-async fn run(cli: Cli) -> anyhow::Result<()> {
+async fn run(cli: Cli) -> miette::Result<()> {
     match cli.command {
         Commands::Init { manifest } => cmd_init(&manifest).await,
         Commands::Update => cmd_update().await,
@@ -137,8 +137,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     }
 }
 
-async fn cmd_init(manifest_source: &str) -> anyhow::Result<()> {
-    let cwd = std::env::current_dir()?;
+async fn cmd_init(manifest_source: &str) -> miette::Result<()> {
+    let cwd = std::env::current_dir().into_diagnostic()?;
     let manifest_path = PathBuf::from(manifest_source);
 
     if manifest_path.is_dir() {
@@ -147,44 +147,56 @@ async fn cmd_init(manifest_source: &str) -> anyhow::Result<()> {
         if !source_manifest.exists() {
             bail!("no east.yml found in {}", manifest_path.display());
         }
-        std::fs::copy(&source_manifest, cwd.join("east.yml")).context("failed to copy east.yml")?;
+        std::fs::copy(&source_manifest, cwd.join("east.yml"))
+            .into_diagnostic()
+            .wrap_err("failed to copy east.yml")?;
     } else if manifest_path.is_file() {
         // Local file: copy it directly
         std::fs::copy(&manifest_path, cwd.join("east.yml"))
-            .context("failed to copy manifest file")?;
+            .into_diagnostic()
+            .wrap_err("failed to copy manifest file")?;
     } else {
         // Treat as a git URL: clone to a temp dir, extract east.yml
-        let temp_dir = tempfile::tempdir().context("failed to create temp dir")?;
+        let temp_dir = tempfile::tempdir()
+            .into_diagnostic()
+            .wrap_err("failed to create temp dir")?;
         let clone_dest = temp_dir.path().join("manifest");
         Git::clone(manifest_source, &clone_dest, None)
             .await
-            .context("failed to clone manifest repository")?;
+            .into_diagnostic()
+            .wrap_err("failed to clone manifest repository")?;
 
         let source_manifest = clone_dest.join("east.yml");
         if !source_manifest.exists() {
             bail!("no east.yml found in cloned manifest repository");
         }
         std::fs::copy(&source_manifest, cwd.join("east.yml"))
-            .context("failed to copy east.yml from cloned repo")?;
+            .into_diagnostic()
+            .wrap_err("failed to copy east.yml from cloned repo")?;
     }
 
     // Initialize workspace
-    Workspace::init(&cwd).context("failed to initialize workspace")?;
+    Workspace::init(&cwd)
+        .into_diagnostic()
+        .wrap_err("failed to initialize workspace")?;
     info!("initialized east workspace at {}", cwd.display());
 
     // Run update to clone all projects
     do_update(&cwd).await
 }
 
-async fn cmd_update() -> anyhow::Result<()> {
-    let ws =
-        Workspace::discover(&std::env::current_dir()?).context("not inside an east workspace")?;
+async fn cmd_update() -> miette::Result<()> {
+    let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
+        .into_diagnostic()
+        .wrap_err("not inside an east workspace")?;
     do_update(ws.root()).await
 }
 
-async fn do_update(workspace_root: &Path) -> anyhow::Result<()> {
+async fn do_update(workspace_root: &Path) -> miette::Result<()> {
     let manifest_path = workspace_root.join("east.yml");
-    let manifest = Manifest::resolve(&manifest_path).context("failed to resolve manifest")?;
+    let manifest = Manifest::resolve(&manifest_path)
+        .into_diagnostic()
+        .wrap_err("failed to resolve manifest")?;
     let projects = manifest.filtered_projects();
 
     if projects.is_empty() {
@@ -259,11 +271,14 @@ async fn do_update(workspace_root: &Path) -> anyhow::Result<()> {
     }
 }
 
-fn cmd_list() -> anyhow::Result<()> {
-    let ws =
-        Workspace::discover(&std::env::current_dir()?).context("not inside an east workspace")?;
+fn cmd_list() -> miette::Result<()> {
+    let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
+        .into_diagnostic()
+        .wrap_err("not inside an east workspace")?;
     let manifest_path = ws.manifest_path();
-    let manifest = Manifest::resolve(&manifest_path).context("failed to resolve manifest")?;
+    let manifest = Manifest::resolve(&manifest_path)
+        .into_diagnostic()
+        .wrap_err("failed to resolve manifest")?;
     let projects = manifest.filtered_projects();
 
     println!(
@@ -286,11 +301,14 @@ fn cmd_list() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn cmd_status() -> anyhow::Result<()> {
-    let ws =
-        Workspace::discover(&std::env::current_dir()?).context("not inside an east workspace")?;
+async fn cmd_status() -> miette::Result<()> {
+    let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
+        .into_diagnostic()
+        .wrap_err("not inside an east workspace")?;
     let manifest_path = ws.manifest_path();
-    let manifest = Manifest::resolve(&manifest_path).context("failed to resolve manifest")?;
+    let manifest = Manifest::resolve(&manifest_path)
+        .into_diagnostic()
+        .wrap_err("failed to resolve manifest")?;
     let projects = manifest.filtered_projects();
 
     println!(
@@ -325,28 +343,35 @@ async fn cmd_status() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_manifest_resolve() -> anyhow::Result<()> {
-    let ws =
-        Workspace::discover(&std::env::current_dir()?).context("not inside an east workspace")?;
+fn cmd_manifest_resolve() -> miette::Result<()> {
+    let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
+        .into_diagnostic()
+        .wrap_err("not inside an east workspace")?;
     let manifest_path = ws.manifest_path();
-    let manifest = Manifest::resolve(&manifest_path).context("failed to resolve manifest")?;
-    let yaml = serde_yaml::to_string(&manifest).context("failed to serialize resolved manifest")?;
+    let manifest = Manifest::resolve(&manifest_path)
+        .into_diagnostic()
+        .wrap_err("failed to resolve manifest")?;
+    let yaml = serde_yaml::to_string(&manifest)
+        .into_diagnostic()
+        .wrap_err("failed to serialize resolved manifest")?;
     print!("{yaml}");
     Ok(())
 }
 
-fn cmd_config(action: ConfigAction) -> anyhow::Result<()> {
-    let workspace_root = Workspace::discover(&std::env::current_dir()?)
+fn cmd_config(action: ConfigAction) -> miette::Result<()> {
+    let workspace_root = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
         .ok()
         .map(|ws| ws.root().to_path_buf());
     let provider = DefaultPathProvider::new(workspace_root);
-    let mut config = Config::load_with_provider(&provider).context("failed to load config")?;
+    let mut config = Config::load_with_provider(&provider)
+        .into_diagnostic()
+        .wrap_err("failed to load config")?;
 
     match action {
         ConfigAction::Get { key } => {
             let value = config
                 .get(&key)
-                .ok_or_else(|| anyhow::anyhow!("key not found: {key}"))?;
+                .ok_or_else(|| miette::miette!("key not found: {key}"))?;
             println!("{value}");
         }
         ConfigAction::Set {
@@ -358,11 +383,26 @@ fn cmd_config(action: ConfigAction) -> anyhow::Result<()> {
             value,
         } => {
             let config_value = if int {
-                ConfigValue::Integer(value.parse().context(format!("invalid integer: {value}"))?)
+                ConfigValue::Integer(
+                    value
+                        .parse()
+                        .into_diagnostic()
+                        .wrap_err(format!("invalid integer: {value}"))?,
+                )
             } else if as_bool {
-                ConfigValue::Boolean(value.parse().context(format!("invalid boolean: {value}"))?)
+                ConfigValue::Boolean(
+                    value
+                        .parse()
+                        .into_diagnostic()
+                        .wrap_err(format!("invalid boolean: {value}"))?,
+                )
             } else if float {
-                ConfigValue::Float(value.parse().context(format!("invalid float: {value}"))?)
+                ConfigValue::Float(
+                    value
+                        .parse()
+                        .into_diagnostic()
+                        .wrap_err(format!("invalid float: {value}"))?,
+                )
             } else {
                 ConfigValue::String(value)
             };
@@ -370,14 +410,16 @@ fn cmd_config(action: ConfigAction) -> anyhow::Result<()> {
             config.set(layer, &key, config_value);
             config
                 .save(&provider, layer)
-                .context("failed to save config")?;
+                .into_diagnostic()
+                .wrap_err("failed to save config")?;
         }
         ConfigAction::Unset { layer, key } => {
             let layer = parse_layer(&layer)?;
             config.unset(layer, &key);
             config
                 .save(&provider, layer)
-                .context("failed to save config")?;
+                .into_diagnostic()
+                .wrap_err("failed to save config")?;
         }
         ConfigAction::List => {
             for (key, value) in config.iter() {
@@ -388,7 +430,7 @@ fn cmd_config(action: ConfigAction) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn parse_layer(s: &str) -> anyhow::Result<ConfigLayer> {
+fn parse_layer(s: &str) -> miette::Result<ConfigLayer> {
     match s {
         "system" => Ok(ConfigLayer::System),
         "global" => Ok(ConfigLayer::Global),
@@ -397,14 +439,19 @@ fn parse_layer(s: &str) -> anyhow::Result<ConfigLayer> {
     }
 }
 
-async fn cmd_external(args: &[String]) -> anyhow::Result<()> {
-    let cmd_name = args.first().context("missing command name")?;
+async fn cmd_external(args: &[String]) -> miette::Result<()> {
+    let cmd_name = args
+        .first()
+        .ok_or_else(|| miette::miette!("missing command name"))?;
     let extra_args = &args[1..];
 
-    let ws =
-        Workspace::discover(&std::env::current_dir()?).context("not inside an east workspace")?;
+    let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
+        .into_diagnostic()
+        .wrap_err("not inside an east workspace")?;
     let manifest_path = ws.manifest_path();
-    let manifest = Manifest::resolve(&manifest_path).context("failed to resolve manifest")?;
+    let manifest = Manifest::resolve(&manifest_path)
+        .into_diagnostic()
+        .wrap_err("failed to resolve manifest")?;
 
     // Build command registry
     let mut registry = CommandRegistry::from_manifest(&manifest);
@@ -414,7 +461,7 @@ async fn cmd_external(args: &[String]) -> anyhow::Result<()> {
 
     let resolved = registry
         .get(cmd_name)
-        .ok_or_else(|| anyhow::anyhow!("unknown command: {cmd_name}"))?;
+        .ok_or_else(|| miette::miette!("unknown command: {cmd_name}"))?;
 
     // Build template variables
     let mut vars = BTreeMap::new();
@@ -454,7 +501,8 @@ async fn cmd_external(args: &[String]) -> anyhow::Result<()> {
                 .current_dir(strip_unc_prefix(ws.root()))
                 .status()
                 .await
-                .context(format!("failed to run {}", executable.display()))?;
+                .into_diagnostic()
+                .wrap_err(format!("failed to run {}", executable.display()))?;
             if status.success() {
                 Ok(())
             } else {
@@ -474,14 +522,14 @@ async fn dispatch_manifest_command(
     vars: &BTreeMap<String, String>,
     workspace_root: &Path,
     extra_args: &[String],
-) -> anyhow::Result<()> {
+) -> miette::Result<()> {
     let engine = TemplateEngine::new();
 
     // Determine working directory
     let work_dir = if let Some(cwd_template) = &decl.cwd {
         let rendered = engine
             .render(cwd_template, vars, "command cwd")
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            .map_err(|e| miette::miette!("{e}"))?;
         PathBuf::from(rendered)
     } else {
         workspace_root.to_path_buf()
@@ -492,7 +540,7 @@ async fn dispatch_manifest_command(
         // Render template
         let rendered = engine
             .render(exec_str, vars, &format!("command '{}' exec", decl.name))
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            .map_err(|e| miette::miette!("{e}"))?;
 
         // Shell out
         #[cfg(unix)]
@@ -517,11 +565,15 @@ async fn dispatch_manifest_command(
         for (key, value) in &decl.env {
             let rendered_val = engine
                 .render(value, vars, &format!("command '{}' env.{key}", decl.name))
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+                .map_err(|e| miette::miette!("{e}"))?;
             cmd.env(key, rendered_val);
         }
 
-        let status = cmd.status().await.context("failed to spawn exec command")?;
+        let status = cmd
+            .status()
+            .await
+            .into_diagnostic()
+            .wrap_err("failed to spawn exec command")?;
         if !status.success() {
             bail!(
                 "command '{}' exited with {}",
@@ -534,7 +586,7 @@ async fn dispatch_manifest_command(
         let declaring_manifest = decl.declared_in.as_deref().unwrap_or(workspace_root);
         let mrp =
             east_manifest::path_resolve::ManifestRelativePath::new(declaring_manifest, script_path);
-        let resolved_script = mrp.resolve().context(format!(
+        let resolved_script = mrp.resolve().into_diagnostic().wrap_err(format!(
             "failed to resolve script '{}' for command '{}'",
             script_path, decl.name
         ))?;
@@ -546,14 +598,15 @@ async fn dispatch_manifest_command(
         for (key, value) in &decl.env {
             let rendered_val = engine
                 .render(value, vars, &format!("command '{}' env.{key}", decl.name))
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+                .map_err(|e| miette::miette!("{e}"))?;
             cmd.env(key, rendered_val);
         }
 
         let status = cmd
             .status()
             .await
-            .context("failed to spawn script command")?;
+            .into_diagnostic()
+            .wrap_err("failed to spawn script command")?;
         if !status.success() {
             bail!(
                 "command '{}' exited with {}",
@@ -570,14 +623,15 @@ async fn dispatch_manifest_command(
         for (key, value) in &decl.env {
             let rendered_val = engine
                 .render(value, vars, &format!("command '{}' env.{key}", decl.name))
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+                .map_err(|e| miette::miette!("{e}"))?;
             cmd.env(key, rendered_val);
         }
 
         let status = cmd
             .status()
             .await
-            .context(format!("failed to spawn {executable_name}"))?;
+            .into_diagnostic()
+            .wrap_err(format!("failed to spawn {executable_name}"))?;
         if !status.success() {
             bail!(
                 "command '{}' exited with {}",

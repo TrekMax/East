@@ -11,8 +11,8 @@ name = "east"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1"
 clap = { version = ">=4.4, <4.5.24", features = ["derive"] }
+miette = { version = ">=7.0, <7.5", features = ["fancy"] }
 east-command = { path = "../east-command" }
 east-config = { path = "../east-config" }
 east-manifest = { path = "../east-manifest" }
