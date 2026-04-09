@@ -52,7 +52,7 @@ impl TemplateEngine {
                         chars.next(); // consume second $
                         if chars.peek() == Some(&'{') {
                             chars.next(); // consume {
-                                          // Find the closing } and output literally as ${...}
+                            // Find the closing } and output literally as ${...}
                             result.push_str("${");
                             loop {
                                 match chars.next() {

@@ -91,11 +91,13 @@ commands:
 "#;
     let m = Manifest::from_yaml_str(yaml).unwrap();
     assert!(m.commands[0].long_help.is_some());
-    assert!(m.commands[0]
-        .long_help
-        .as_ref()
-        .unwrap()
-        .contains("multi-line"));
+    assert!(
+        m.commands[0]
+            .long_help
+            .as_ref()
+            .unwrap()
+            .contains("multi-line")
+    );
 }
 
 #[test]
