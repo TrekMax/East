@@ -42,7 +42,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.82.0"
+          toolchain: "1.85.0"
           targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
@@ -231,7 +231,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.82.0"
+          toolchain: "1.85.0"
 
       - name: Publish crates
         env:

@@ -19,23 +19,18 @@ repository = "https://github.com/TrekMax/East"
 # Shared dependency versions. Member crates use `dep.workspace = true`.
 # See docs/dev/dependency-policy.md for the version pinning policy.
 [workspace.dependencies]
-# Pinned below 4.5.24: clap 4.5.24+ depends on clap_lex >=1.0 which requires edition 2024
-clap = { version = ">=4.4, <4.5.24", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 glob-match = "0.2"
 indicatif = "0.17"
-# Pinned below 7.5: future miette versions may require edition 2024 transitive deps
-miette = { version = ">=7.0, <7.5", features = ["derive", "fancy"] }
+miette = { version = "7", features = ["derive", "fancy"] }
 regex-lite = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-# Pinned below 3.19: tempfile 3.19+ depends on getrandom >=0.4 which requires edition 2024
-tempfile = ">=3.10, <3.19"
+tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-# Pinned below 2.1: assert_cmd 2.1+ requires edition 2024
-assert_cmd = ">=2.0, <2.1"
-# Pinned below 3.2: predicates 3.2+ may require edition 2024 transitive deps
-predicates = ">=3.0, <3.2"
+assert_cmd = "2"
+predicates = "3"
