@@ -39,10 +39,27 @@ east config set user.name trekmax
 east config get user.name
 ```
 
-## 构建
+## 安装
+
+### 从 Git 安装（推荐）
+
+```bash
+cargo install --git https://github.com/TrekMax/East east-cli
+```
+
+### 从源码安装
+
+```bash
+git clone https://github.com/TrekMax/East.git
+cd East
+cargo install --path crates/east-cli
+```
+
+### 仅构建（不安装）
 
 ```bash
 cargo build --release
+# 二进制文件：target/release/east
 ```
 
 输出为单一静态二进制文件，不依赖 Python 运行时。

@@ -39,10 +39,27 @@ east config set user.name trekmax
 east config get user.name
 ```
 
-## Building
+## Installation
+
+### From Git (recommended)
+
+```bash
+cargo install --git https://github.com/TrekMax/East east-cli
+```
+
+### From source
+
+```bash
+git clone https://github.com/TrekMax/East.git
+cd East
+cargo install --path crates/east-cli
+```
+
+### Build only (without installing)
 
 ```bash
 cargo build --release
+# Binary: target/release/east
 ```
 
 The output is a single static binary with no Python runtime dependency.
