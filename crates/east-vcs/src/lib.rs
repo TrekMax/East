@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 //! Git operations via shell-out to system `git` for east.
 
+pub mod error;
+mod git;
+
+pub use git::Git;
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -10,43 +15,43 @@ mod tests {
 
     use super::*;
 
-    /// Create a bare git repo to serve as a "remote".
-    fn create_bare_repo(dir: &Path) {
-        Command::new("git")
-            .args(["init", "--bare"])
-            .arg(dir)
-            .output()
-            .expect("git init --bare failed");
-    }
-
     /// Create a non-bare repo with one commit on a branch.
     fn create_repo_with_commit(dir: &Path, branch: &str) {
+        let d = dir.to_str().unwrap();
+
         Command::new("git")
             .args(["init", "-b", branch])
             .arg(dir)
             .output()
             .expect("git init failed");
 
-        // Configure user for commit
-        Command::new("git")
-            .args(["-C", dir.to_str().unwrap(), "config", "user.email", "test@test.com"])
-            .output()
-            .expect("git config email failed");
-        Command::new("git")
-            .args(["-C", dir.to_str().unwrap(), "config", "user.name", "Test"])
-            .output()
-            .expect("git config name failed");
+        // Configure user for commit (disable signing for test repos)
+        for (key, val) in [
+            ("user.email", "test@test.com"),
+            ("user.name", "Test"),
+            ("commit.gpgsign", "false"),
+        ] {
+            Command::new("git")
+                .args(["-C", d, "config", key, val])
+                .output()
+                .unwrap_or_else(|_| panic!("git config {key} failed"));
+        }
 
         // Create a file and commit
         std::fs::write(dir.join("README.md"), "# test\n").unwrap();
         Command::new("git")
-            .args(["-C", dir.to_str().unwrap(), "add", "."])
+            .args(["-C", d, "add", "."])
             .output()
             .expect("git add failed");
-        Command::new("git")
-            .args(["-C", dir.to_str().unwrap(), "commit", "-m", "initial commit"])
+        let out = Command::new("git")
+            .args(["-C", d, "commit", "-m", "initial commit"])
             .output()
             .expect("git commit failed");
+        assert!(
+            out.status.success(),
+            "git commit failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
 
     // ── Clone ───────────────────────────────────────────────────────

@@ -1,0 +1,149 @@
+#![allow(clippy::doc_markdown)]
+
+use std::path::Path;
+
+use tokio::process::Command;
+
+use crate::error::VcsError;
+
+/// Shell-out wrapper for system `git` operations.
+///
+/// All methods are async and call the `git` binary as a child process.
+/// No `libgit2` or `git2-rs` binding is used.
+pub struct Git;
+
+impl Git {
+    /// Clone a repository into `dest`.
+    ///
+    /// If `revision` is provided, clones only that branch with `--single-branch`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn clone(url: &str, dest: &Path, revision: Option<&str>) -> Result<(), VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.arg("clone");
+        if let Some(rev) = revision {
+            cmd.args(["--single-branch", "-b", rev]);
+        }
+        cmd.arg(url);
+        cmd.arg(dest);
+
+        run_git(cmd, dest).await
+    }
+
+    /// Fetch from origin in the repository at `repo_path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn fetch(repo_path: &Path) -> Result<(), VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["fetch", "origin"]);
+
+        run_git(cmd, repo_path).await
+    }
+
+    /// Checkout a specific revision in the repository at `repo_path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn checkout(repo_path: &Path, revision: &str) -> Result<(), VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["checkout", revision]);
+
+        run_git(cmd, repo_path).await
+    }
+
+    /// Get the current HEAD SHA (full 40-character hex).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn head(repo_path: &Path) -> Result<String, VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["rev-parse", "HEAD"]);
+
+        run_git_output(cmd, repo_path).await
+    }
+
+    /// Get the current branch name.
+    ///
+    /// Returns `"HEAD"` if in detached HEAD state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn current_branch(repo_path: &Path) -> Result<String, VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["rev-parse", "--abbrev-ref", "HEAD"]);
+
+        run_git_output(cmd, repo_path).await
+    }
+
+    /// Check whether the working tree has uncommitted changes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn is_dirty(repo_path: &Path) -> Result<bool, VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["status", "--porcelain"]);
+
+        let output = run_git_output(cmd, repo_path).await?;
+        Ok(!output.is_empty())
+    }
+
+    /// Get the remote URL for origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn remote_url(repo_path: &Path) -> Result<String, VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["remote", "get-url", "origin"]);
+
+        run_git_output(cmd, repo_path).await
+    }
+}
+
+/// Run a git command, returning `Ok(())` on success or an error with stderr.
+async fn run_git(mut cmd: Command, context_path: &Path) -> Result<(), VcsError> {
+    let output = cmd.output().await?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(VcsError::GitFailed {
+            path: context_path.to_path_buf(),
+            stderr,
+        })
+    }
+}
+
+/// Run a git command and return its trimmed stdout on success.
+async fn run_git_output(mut cmd: Command, context_path: &Path) -> Result<String, VcsError> {
+    let output = cmd.output().await?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(VcsError::GitFailed {
+            path: context_path.to_path_buf(),
+            stderr,
+        })
+    }
+}
