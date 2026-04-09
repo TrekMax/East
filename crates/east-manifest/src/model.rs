@@ -1,6 +1,10 @@
 #![allow(clippy::doc_markdown)]
 
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
+
+use crate::error::ManifestError;
 
 /// A named remote repository base URL.
 ///
@@ -93,4 +97,148 @@ pub struct Manifest {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub group_filter: Vec<String>,
+}
+
+impl Manifest {
+    /// Parse a manifest from a YAML string and validate it.
+    ///
+    /// Validates:
+    /// - Schema version is `1`.
+    /// - No duplicate project names.
+    /// - All remote references (in projects and defaults) exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ManifestError`] if parsing or validation fails.
+    pub fn from_yaml_str(yaml: &str) -> Result<Self, ManifestError> {
+        let manifest: Self = serde_yaml::from_str(yaml)?;
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
+    /// Validate the manifest's internal consistency.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ManifestError`] on validation failure.
+    pub fn validate(&self) -> Result<(), ManifestError> {
+        // Version check
+        if self.version != 1 {
+            return Err(ManifestError::UnsupportedVersion {
+                version: self.version,
+            });
+        }
+
+        // Duplicate project names
+        let mut seen_names = HashSet::new();
+        for p in &self.projects {
+            if !seen_names.insert(&p.name) {
+                return Err(ManifestError::DuplicateProject {
+                    name: p.name.clone(),
+                });
+            }
+        }
+
+        // Remote reference validation
+        let remote_names: HashSet<&str> = self.remotes.iter().map(|r| r.name.as_str()).collect();
+
+        if let Some(defaults) = &self.defaults {
+            if let Some(ref default_remote) = defaults.remote {
+                if !remote_names.contains(default_remote.as_str()) {
+                    return Err(ManifestError::UnknownRemote {
+                        name: default_remote.clone(),
+                    });
+                }
+            }
+        }
+
+        for p in &self.projects {
+            if let Some(ref remote) = p.remote {
+                if !remote_names.contains(remote.as_str()) {
+                    return Err(ManifestError::UnknownRemote {
+                        name: remote.clone(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Return projects that pass the group filter.
+    ///
+    /// If `group_filter` is empty, all projects are returned.
+    /// Otherwise, a project is included if:
+    /// - It has no groups (always included), OR
+    /// - It belongs to at least one `+group` AND does not belong to any `-group`.
+    #[must_use]
+    pub fn filtered_projects(&self) -> Vec<&Project> {
+        if self.group_filter.is_empty() {
+            return self.projects.iter().collect();
+        }
+
+        let include: HashSet<&str> = self
+            .group_filter
+            .iter()
+            .filter_map(|f| f.strip_prefix('+'))
+            .collect();
+
+        let exclude: HashSet<&str> = self
+            .group_filter
+            .iter()
+            .filter_map(|f| f.strip_prefix('-'))
+            .collect();
+
+        self.projects
+            .iter()
+            .filter(|p| {
+                if p.groups.is_empty() {
+                    return true;
+                }
+                let dominated_by_exclude = p.groups.iter().any(|g| exclude.contains(g.as_str()));
+                let matched_by_include = p.groups.iter().any(|g| include.contains(g.as_str()));
+                matched_by_include && !dominated_by_exclude
+            })
+            .collect()
+    }
+
+    /// Determine the clone URL for a project.
+    ///
+    /// Resolves the remote (project-level, then defaults), looks it up,
+    /// and constructs `{url_base}/{project_name}`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ManifestError::NoRemote`] if no remote can be resolved.
+    pub fn project_clone_url(&self, project: &Project) -> Result<String, ManifestError> {
+        let remote_name = project
+            .remote
+            .as_deref()
+            .or_else(|| self.defaults.as_ref().and_then(|d| d.remote.as_deref()))
+            .ok_or_else(|| ManifestError::NoRemote {
+                project: project.name.clone(),
+            })?;
+
+        let remote = self
+            .remotes
+            .iter()
+            .find(|r| r.name == remote_name)
+            .ok_or_else(|| ManifestError::UnknownRemote {
+                name: remote_name.to_string(),
+            })?;
+
+        Ok(format!("{}/{}", remote.url_base, project.name))
+    }
+
+    /// Determine the effective revision for a project.
+    ///
+    /// Returns the project's explicit revision if set, otherwise the default
+    /// revision. Returns `None` if neither is set.
+    #[must_use]
+    pub fn project_revision<'a>(&'a self, project: &'a Project) -> Option<&'a str> {
+        project
+            .revision
+            .as_deref()
+            .or_else(|| self.defaults.as_ref().and_then(|d| d.revision.as_deref()))
+    }
 }

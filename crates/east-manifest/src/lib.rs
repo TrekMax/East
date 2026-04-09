@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 //! Manifest data model, YAML parsing, and import resolution for east.
 
+pub mod error;
 mod model;
 
 pub use model::{Defaults, Import, Manifest, Project, Remote};
@@ -313,7 +314,7 @@ mod tests {
 
     #[test]
     fn parse_full_east_yml() {
-        let yaml = r#"
+        let yaml = r"
 version: 1
 
 remotes:
@@ -340,14 +341,20 @@ imports:
     allowlist: [hal-*]
 
 group-filter: [+required, -optional]
-"#;
+";
         let m = Manifest::from_yaml_str(yaml).unwrap();
         assert_eq!(m.version, 1);
         assert_eq!(m.remotes.len(), 1);
         assert_eq!(m.remotes[0].name, "origin");
         assert_eq!(m.remotes[0].url_base, "https://github.com/my-org");
-        assert_eq!(m.defaults.as_ref().unwrap().remote.as_deref(), Some("origin"));
-        assert_eq!(m.defaults.as_ref().unwrap().revision.as_deref(), Some("main"));
+        assert_eq!(
+            m.defaults.as_ref().unwrap().remote.as_deref(),
+            Some("origin")
+        );
+        assert_eq!(
+            m.defaults.as_ref().unwrap().revision.as_deref(),
+            Some("main")
+        );
         assert_eq!(m.projects.len(), 3);
         assert_eq!(m.projects[0].name, "sdk-core");
         assert_eq!(m.projects[0].effective_path(), "sdk/core");
@@ -377,12 +384,12 @@ group-filter: [+required, -optional]
 
     #[test]
     fn parse_rejects_duplicate_project_names() {
-        let yaml = r#"
+        let yaml = r"
 version: 1
 projects:
   - name: foo
   - name: foo
-"#;
+";
         let err = Manifest::from_yaml_str(yaml).unwrap_err();
         assert!(
             err.to_string().contains("duplicate"),
@@ -392,7 +399,7 @@ projects:
 
     #[test]
     fn parse_rejects_unknown_remote_in_project() {
-        let yaml = r#"
+        let yaml = r"
 version: 1
 remotes:
   - name: origin
@@ -400,7 +407,7 @@ remotes:
 projects:
   - name: foo
     remote: nonexistent
-"#;
+";
         let err = Manifest::from_yaml_str(yaml).unwrap_err();
         assert!(
             err.to_string().contains("nonexistent"),
@@ -410,14 +417,14 @@ projects:
 
     #[test]
     fn parse_rejects_unknown_remote_in_defaults() {
-        let yaml = r#"
+        let yaml = r"
 version: 1
 remotes:
   - name: origin
     url-base: https://example.com
 defaults:
   remote: ghost
-"#;
+";
         let err = Manifest::from_yaml_str(yaml).unwrap_err();
         assert!(
             err.to_string().contains("ghost"),
