@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use thiserror::Error;
 
 /// Errors that can occur when parsing or validating a manifest.
@@ -7,6 +9,15 @@ pub enum ManifestError {
     /// YAML deserialization failed.
     #[error("failed to parse manifest YAML: {0}")]
     Yaml(#[from] serde_yaml::Error),
+
+    /// Filesystem I/O error while reading a manifest file.
+    #[error("failed to read manifest file {path}: {source}")]
+    Io {
+        /// The file path that could not be read.
+        path: PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
 
     /// The manifest declares an unsupported schema version.
     #[error("unsupported manifest version {version} (expected 1)")]
@@ -34,5 +45,12 @@ pub enum ManifestError {
     NoRemote {
         /// The project name missing a remote.
         project: String,
+    },
+
+    /// An import cycle was detected during manifest resolution.
+    #[error("import cycle detected: {path}")]
+    ImportCycle {
+        /// The path that was already visited.
+        path: PathBuf,
     },
 }

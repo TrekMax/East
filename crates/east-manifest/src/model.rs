@@ -4,6 +4,8 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use std::path::Path;
+
 use crate::error::ManifestError;
 
 /// A named remote repository base URL.
@@ -106,6 +108,23 @@ impl Manifest {
     /// - Schema version is `1`.
     /// - No duplicate project names.
     /// - All remote references (in projects and defaults) exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ManifestError`] if parsing or validation fails.
+    /// Resolve a manifest file, recursively processing all imports.
+    ///
+    /// Returns a single flattened manifest with all transitive projects
+    /// merged. First definition wins.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ManifestError`] on parse, I/O, or cycle errors.
+    pub fn resolve(path: impl AsRef<Path>) -> Result<Self, ManifestError> {
+        crate::resolve::resolve(path)
+    }
+
+    /// Parse a manifest from a YAML string and validate it.
     ///
     /// # Errors
     ///

@@ -3,6 +3,7 @@
 
 pub mod error;
 mod model;
+mod resolve;
 
 pub use model::{Defaults, Import, Manifest, Project, Remote};
 
