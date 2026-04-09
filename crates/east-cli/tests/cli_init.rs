@@ -65,7 +65,7 @@ fn setup_manifest_repo(dir: &tempfile::TempDir) -> (String, String) {
     }
 
     let manifest_content = format!(
-        r#"version: 1
+        r"version: 1
 
 remotes:
   - name: local
@@ -77,7 +77,7 @@ defaults:
 
 projects:
   - name: {project_name}
-"#,
+",
         project_parent = project_repo.parent().unwrap().display(),
         project_name = project_repo.file_name().unwrap().to_str().unwrap(),
     );

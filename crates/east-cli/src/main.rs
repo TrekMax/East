@@ -215,7 +215,7 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
     for project in &projects {
         let project_path = workspace_root.join(project.effective_path());
         let revision = manifest.project_revision(project).map(String::from);
-        let clone_url = manifest.project_clone_url(project).ok().map(String::from);
+        let clone_url = manifest.project_clone_url(project).ok();
         let project_name = project.name.clone();
         let sem = semaphore.clone();
         let pb = mp.add(ProgressBar::new_spinner());
