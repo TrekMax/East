@@ -2,7 +2,7 @@
 
 ## 最低支持 Rust 版本（MSRV）
 
-MSRV 锁定在 `rust-toolchain.toml` 中（当前为 **1.82.0**）。
+MSRV 锁定在 `rust-toolchain.toml` 中（当前为 **1.85.0**）。
 升级 MSRV 需要编写设计说明并在开发日志中记录。
 
 ## 规则
@@ -15,8 +15,8 @@ MSRV 锁定在 `rust-toolchain.toml` 中（当前为 **1.82.0**）。
 示例：
 
 ```toml
-# Pinned below 4.5.24: clap_lex >=1.0 requires edition 2024
-clap = ">=4.4, <4.5.24"
+# Pinned below X.Y: some-dep requires edition beyond our MSRV
+some-dep = ">=A.B, <X.Y"
 ```
 
 ### 2. 工作区级别依赖声明
@@ -45,15 +45,10 @@ clap = { workspace = true }
 
 目前仅为信息性检查，将在 Phase 5 升级为 CI 硬性门禁。
 
-## 当前锁定的依赖（Phase 2.5）
+## 当前锁定的依赖
 
-| 依赖 | 版本上界 | 原因 |
-|---|---|---|
-| `clap` | `<4.5.24` | `clap_lex >=1.0` 要求 edition 2024 |
-| `tempfile` | `<3.19` | `getrandom >=0.4` 要求 edition 2024 |
-| `assert_cmd` | `<2.1` | 要求 edition 2024 |
-| `predicates` | `<3.2` | 可能要求 edition 2024 的传递依赖 |
-| `miette` | `<7.5` | 预防性锁定 |
+无。工具链升级到 1.85.0 后，所有与 edition 2024 相关的版本上界约束均已移除，
+因为 1.85.0 原生支持 edition 2024。
 
 ## 更新本文档
 

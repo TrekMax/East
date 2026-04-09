@@ -2,7 +2,7 @@
 
 ## Minimum Supported Rust Version (MSRV)
 
-The MSRV is pinned in `rust-toolchain.toml` (currently **1.82.0**).
+The MSRV is pinned in `rust-toolchain.toml` (currently **1.85.0**).
 Bumping MSRV requires a design note and a dev-log entry.
 
 ## Rules
@@ -16,8 +16,8 @@ include an inline comment explaining the reason.
 Example:
 
 ```toml
-# Pinned below 4.5.24: clap_lex >=1.0 requires edition 2024
-clap = ">=4.4, <4.5.24"
+# Pinned below X.Y: some-dep requires edition beyond our MSRV
+some-dep = ">=A.B, <X.Y"
 ```
 
 ### 2. Workspace-level dependency declarations
@@ -47,15 +47,10 @@ The `cargo deny` configuration lives in `deny.toml` (checked in). It enforces:
 This is initially informational. It will be promoted to a hard CI gate in
 Phase 5.
 
-## Currently Pinned Dependencies (Phase 2.5)
+## Currently Pinned Dependencies
 
-| Dependency | Upper Bound | Reason |
-|---|---|---|
-| `clap` | `<4.5.24` | `clap_lex >=1.0` requires edition 2024 |
-| `tempfile` | `<3.19` | `getrandom >=0.4` requires edition 2024 |
-| `assert_cmd` | `<2.1` | Requires edition 2024 |
-| `predicates` | `<3.2` | May require edition 2024 transitive deps |
-| `miette` | `<7.5` | Precautionary pin |
+None. All previous edition-2024-related pins were removed after upgrading
+the toolchain to 1.85.0, which supports edition 2024 natively.
 
 ## Updating This Document
 
