@@ -308,4 +308,294 @@ mod tests {
         let result = serde_yaml::from_str::<Manifest>(yaml);
         assert!(result.is_err());
     }
+
+    // ── YAML parsing (commit 6) ─────────────────────────────────────
+
+    #[test]
+    fn parse_full_east_yml() {
+        let yaml = r#"
+version: 1
+
+remotes:
+  - name: origin
+    url-base: https://github.com/my-org
+
+defaults:
+  remote: origin
+  revision: main
+
+projects:
+  - name: sdk-core
+    path: sdk/core
+    revision: v1.2.0
+    groups: [required]
+  - name: sdk-drivers
+    path: sdk/drivers
+    groups: [required]
+  - name: sdk-examples
+    groups: [optional]
+
+imports:
+  - file: sdk/core/east.yml
+    allowlist: [hal-*]
+
+group-filter: [+required, -optional]
+"#;
+        let m = Manifest::from_yaml_str(yaml).unwrap();
+        assert_eq!(m.version, 1);
+        assert_eq!(m.remotes.len(), 1);
+        assert_eq!(m.remotes[0].name, "origin");
+        assert_eq!(m.remotes[0].url_base, "https://github.com/my-org");
+        assert_eq!(m.defaults.as_ref().unwrap().remote.as_deref(), Some("origin"));
+        assert_eq!(m.defaults.as_ref().unwrap().revision.as_deref(), Some("main"));
+        assert_eq!(m.projects.len(), 3);
+        assert_eq!(m.projects[0].name, "sdk-core");
+        assert_eq!(m.projects[0].effective_path(), "sdk/core");
+        assert_eq!(m.projects[1].effective_path(), "sdk/drivers");
+        assert_eq!(m.projects[2].effective_path(), "sdk-examples");
+        assert_eq!(m.imports.len(), 1);
+        assert_eq!(m.group_filter, vec!["+required", "-optional"]);
+    }
+
+    #[test]
+    fn parse_minimal_east_yml() {
+        let yaml = "version: 1\n";
+        let m = Manifest::from_yaml_str(yaml).unwrap();
+        assert_eq!(m.version, 1);
+        assert!(m.projects.is_empty());
+    }
+
+    #[test]
+    fn parse_rejects_unsupported_version() {
+        let yaml = "version: 99\n";
+        let err = Manifest::from_yaml_str(yaml).unwrap_err();
+        assert!(
+            err.to_string().contains("unsupported"),
+            "error should mention unsupported version: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_rejects_duplicate_project_names() {
+        let yaml = r#"
+version: 1
+projects:
+  - name: foo
+  - name: foo
+"#;
+        let err = Manifest::from_yaml_str(yaml).unwrap_err();
+        assert!(
+            err.to_string().contains("duplicate"),
+            "error should mention duplicate: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_rejects_unknown_remote_in_project() {
+        let yaml = r#"
+version: 1
+remotes:
+  - name: origin
+    url-base: https://example.com
+projects:
+  - name: foo
+    remote: nonexistent
+"#;
+        let err = Manifest::from_yaml_str(yaml).unwrap_err();
+        assert!(
+            err.to_string().contains("nonexistent"),
+            "error should mention unknown remote: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_rejects_unknown_remote_in_defaults() {
+        let yaml = r#"
+version: 1
+remotes:
+  - name: origin
+    url-base: https://example.com
+defaults:
+  remote: ghost
+"#;
+        let err = Manifest::from_yaml_str(yaml).unwrap_err();
+        assert!(
+            err.to_string().contains("ghost"),
+            "error should mention unknown remote: {err}"
+        );
+    }
+
+    // ── Group filtering ─────────────────────────────────────────────
+
+    #[test]
+    fn group_filter_includes_required_excludes_optional() {
+        let m = Manifest {
+            version: 1,
+            remotes: Vec::new(),
+            defaults: None,
+            projects: vec![
+                Project {
+                    name: "a".into(),
+                    path: None,
+                    remote: None,
+                    revision: None,
+                    groups: vec!["required".into()],
+                },
+                Project {
+                    name: "b".into(),
+                    path: None,
+                    remote: None,
+                    revision: None,
+                    groups: vec!["optional".into()],
+                },
+                Project {
+                    name: "c".into(),
+                    path: None,
+                    remote: None,
+                    revision: None,
+                    groups: Vec::new(), // no group — always included
+                },
+            ],
+            imports: Vec::new(),
+            group_filter: vec!["+required".into(), "-optional".into()],
+        };
+        let filtered = m.filtered_projects();
+        let names: Vec<&str> = filtered.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "c"]);
+    }
+
+    #[test]
+    fn group_filter_empty_includes_all() {
+        let m = Manifest {
+            version: 1,
+            remotes: Vec::new(),
+            defaults: None,
+            projects: vec![
+                Project {
+                    name: "a".into(),
+                    path: None,
+                    remote: None,
+                    revision: None,
+                    groups: vec!["optional".into()],
+                },
+                Project {
+                    name: "b".into(),
+                    path: None,
+                    remote: None,
+                    revision: None,
+                    groups: Vec::new(),
+                },
+            ],
+            imports: Vec::new(),
+            group_filter: Vec::new(),
+        };
+        let filtered = m.filtered_projects();
+        assert_eq!(filtered.len(), 2);
+    }
+
+    // ── URL construction ────────────────────────────────────────────
+
+    #[test]
+    fn project_clone_url_from_remote() {
+        let m = Manifest {
+            version: 1,
+            remotes: vec![Remote {
+                name: "origin".into(),
+                url_base: "https://github.com/org".into(),
+            }],
+            defaults: Some(Defaults {
+                remote: Some("origin".into()),
+                revision: Some("main".into()),
+            }),
+            projects: vec![Project {
+                name: "sdk-core".into(),
+                path: None,
+                remote: None,
+                revision: None,
+                groups: Vec::new(),
+            }],
+            imports: Vec::new(),
+            group_filter: Vec::new(),
+        };
+        let url = m.project_clone_url(&m.projects[0]).unwrap();
+        assert_eq!(url, "https://github.com/org/sdk-core");
+    }
+
+    #[test]
+    fn project_clone_url_explicit_remote_overrides_default() {
+        let m = Manifest {
+            version: 1,
+            remotes: vec![
+                Remote {
+                    name: "origin".into(),
+                    url_base: "https://github.com/org".into(),
+                },
+                Remote {
+                    name: "mirror".into(),
+                    url_base: "https://mirror.example.com".into(),
+                },
+            ],
+            defaults: Some(Defaults {
+                remote: Some("origin".into()),
+                revision: None,
+            }),
+            projects: vec![Project {
+                name: "sdk-core".into(),
+                path: None,
+                remote: Some("mirror".into()),
+                revision: None,
+                groups: Vec::new(),
+            }],
+            imports: Vec::new(),
+            group_filter: Vec::new(),
+        };
+        let url = m.project_clone_url(&m.projects[0]).unwrap();
+        assert_eq!(url, "https://mirror.example.com/sdk-core");
+    }
+
+    #[test]
+    fn project_effective_revision_falls_back_to_defaults() {
+        let m = Manifest {
+            version: 1,
+            remotes: Vec::new(),
+            defaults: Some(Defaults {
+                remote: None,
+                revision: Some("main".into()),
+            }),
+            projects: vec![Project {
+                name: "a".into(),
+                path: None,
+                remote: None,
+                revision: None,
+                groups: Vec::new(),
+            }],
+            imports: Vec::new(),
+            group_filter: Vec::new(),
+        };
+        let rev = m.project_revision(&m.projects[0]);
+        assert_eq!(rev, Some("main"));
+    }
+
+    #[test]
+    fn project_explicit_revision_overrides_default() {
+        let m = Manifest {
+            version: 1,
+            remotes: Vec::new(),
+            defaults: Some(Defaults {
+                remote: None,
+                revision: Some("main".into()),
+            }),
+            projects: vec![Project {
+                name: "a".into(),
+                path: None,
+                remote: None,
+                revision: Some("v2.0".into()),
+                groups: Vec::new(),
+            }],
+            imports: Vec::new(),
+            group_filter: Vec::new(),
+        };
+        let rev = m.project_revision(&m.projects[0]);
+        assert_eq!(rev, Some("v2.0"));
+    }
 }
