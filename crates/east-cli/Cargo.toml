@@ -12,11 +12,11 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-east-command = { path = "../east-command" }
-east-config = { path = "../east-config" }
-east-manifest = { path = "../east-manifest" }
-east-vcs = { path = "../east-vcs" }
-east-workspace = { path = "../east-workspace" }
+east-command = { version = "0.0.1", path = "../east-command" }
+east-config = { version = "0.0.1", path = "../east-config" }
+east-manifest = { version = "0.0.1", path = "../east-manifest" }
+east-vcs = { version = "0.0.1", path = "../east-vcs" }
+east-workspace = { version = "0.0.1", path = "../east-workspace" }
 indicatif.workspace = true
 miette.workspace = true
 serde_yaml.workspace = true

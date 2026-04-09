@@ -246,7 +246,7 @@ jobs:
             east-config
             east-workspace
             east-runner
-            east-build
+            east-build-util
           )
 
           for crate in "${LEAF_CRATES[@]}"; do
