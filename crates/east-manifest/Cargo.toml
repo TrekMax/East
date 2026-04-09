@@ -8,6 +8,7 @@ description = "Manifest data model, YAML parsing, and import resolution for east
 
 [dependencies]
 glob-match = "0.2"
+regex-lite = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2"

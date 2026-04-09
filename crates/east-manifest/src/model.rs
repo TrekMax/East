@@ -75,6 +75,53 @@ pub struct Import {
     pub allowlist: Vec<String>,
 }
 
+/// A declared argument for an extension command.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandArg {
+    /// Argument name (used as `${arg.<name>}`).
+    pub name: String,
+    /// Help text for this argument.
+    pub help: String,
+    /// Whether this argument is required.
+    #[serde(default)]
+    pub required: bool,
+    /// Default value if not provided.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+}
+
+/// A command declared in the manifest `commands:` section.
+///
+/// Exactly one of `exec`, `executable`, or `script` must be present.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandDecl {
+    /// Command name. Must match `[a-z][a-z0-9-]*`.
+    pub name: String,
+    /// Short help text (single line).
+    pub help: String,
+    /// Optional long help text (multi-line).
+    #[serde(default, rename = "long-help", skip_serializing_if = "Option::is_none")]
+    pub long_help: Option<String>,
+    /// Shell command string (executed via `sh -c` / `cmd /C`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exec: Option<String>,
+    /// Name of an executable on `PATH` to delegate to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executable: Option<String>,
+    /// Path to a script, relative to the manifest that declares it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script: Option<String>,
+    /// Declared arguments for this command.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub args: Vec<CommandArg>,
+    /// Extra environment variables for exec/script.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub env: std::collections::BTreeMap<String, String>,
+    /// Working directory for exec/script (supports template variables).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
 /// Top-level east manifest (`east.yml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
@@ -99,6 +146,9 @@ pub struct Manifest {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub group_filter: Vec<String>,
+    /// Extension commands declared in this manifest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub commands: Vec<CommandDecl>,
 }
 
 impl Manifest {
@@ -140,6 +190,10 @@ impl Manifest {
     /// # Errors
     ///
     /// Returns [`ManifestError`] on validation failure.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal command-name regex fails to compile (should never happen).
     pub fn validate(&self) -> Result<(), ManifestError> {
         // Version check
         if self.version != 1 {
@@ -178,6 +232,55 @@ impl Manifest {
                         name: remote.clone(),
                     });
                 }
+            }
+        }
+
+        // Command validation
+        let name_re = regex_lite::Regex::new(r"^[a-z][a-z0-9-]*$")
+            .expect("command name regex should compile");
+        let reserved: HashSet<&str> = [
+            // Built-in commands
+            "init",
+            "update",
+            "list",
+            "status",
+            "manifest",
+            "config",
+            "help",
+            "version",
+            // Reserved for future phases
+            "build",
+            "flash",
+            "debug",
+            "attach",
+            "reset",
+            "import-west",
+        ]
+        .into_iter()
+        .collect();
+
+        for cmd in &self.commands {
+            // Name format
+            if !name_re.is_match(&cmd.name) {
+                return Err(ManifestError::InvalidCommandName {
+                    name: cmd.name.clone(),
+                });
+            }
+            // Reserved names
+            if reserved.contains(cmd.name.as_str()) {
+                return Err(ManifestError::ReservedCommandName {
+                    name: cmd.name.clone(),
+                });
+            }
+            // Mutually exclusive exec/executable/script
+            let field_count = [&cmd.exec, &cmd.executable, &cmd.script]
+                .iter()
+                .filter(|f| f.is_some())
+                .count();
+            if field_count != 1 {
+                return Err(ManifestError::CommandMutuallyExclusive {
+                    name: cmd.name.clone(),
+                });
             }
         }
 

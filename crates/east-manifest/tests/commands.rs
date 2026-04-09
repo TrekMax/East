@@ -15,7 +15,10 @@ commands:
     assert_eq!(m.commands.len(), 1);
     assert_eq!(m.commands[0].name, "hello");
     assert_eq!(m.commands[0].help, "Say hello");
-    assert_eq!(m.commands[0].exec.as_deref(), Some("echo hello from ${workspace.root}"));
+    assert_eq!(
+        m.commands[0].exec.as_deref(),
+        Some("echo hello from ${workspace.root}")
+    );
     assert!(m.commands[0].executable.is_none());
     assert!(m.commands[0].script.is_none());
 }
@@ -88,7 +91,11 @@ commands:
 "#;
     let m = Manifest::from_yaml_str(yaml).unwrap();
     assert!(m.commands[0].long_help.is_some());
-    assert!(m.commands[0].long_help.as_ref().unwrap().contains("multi-line"));
+    assert!(m.commands[0]
+        .long_help
+        .as_ref()
+        .unwrap()
+        .contains("multi-line"));
 }
 
 #[test]
@@ -120,8 +127,7 @@ commands:
 "#;
     let err = Manifest::from_yaml_str(yaml).unwrap_err();
     assert!(
-        err.to_string().contains("mutually exclusive")
-            || err.to_string().contains("exactly one"),
+        err.to_string().contains("mutually exclusive") || err.to_string().contains("exactly one"),
         "error should mention mutual exclusivity: {err}"
     );
 }
@@ -164,7 +170,9 @@ commands:
 
 #[test]
 fn reject_command_with_builtin_name() {
-    for name in &["init", "update", "list", "status", "manifest", "config", "help", "version"] {
+    for name in &[
+        "init", "update", "list", "status", "manifest", "config", "help", "version",
+    ] {
         let yaml = format!(
             r#"
 version: 1

@@ -82,6 +82,7 @@ pub fn resolve(path: impl AsRef<Path>) -> Result<Manifest, ManifestError> {
         projects: Vec::new(),
         imports: Vec::new(),
         group_filter: Vec::new(),
+        commands: Vec::new(),
     });
     result.projects = all_projects;
 

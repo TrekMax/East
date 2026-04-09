@@ -5,7 +5,7 @@ pub mod error;
 mod model;
 mod resolve;
 
-pub use model::{Defaults, Import, Manifest, Project, Remote};
+pub use model::{CommandArg, CommandDecl, Defaults, Import, Manifest, Project, Remote};
 
 #[cfg(test)]
 mod tests {
@@ -214,6 +214,7 @@ mod tests {
             projects: Vec::new(),
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         assert_eq!(m.version, 1);
         assert!(m.remotes.is_empty());
@@ -256,6 +257,7 @@ mod tests {
                 allowlist: vec!["hal-*".into()],
             }],
             group_filter: vec!["+required".into(), "-optional".into()],
+            commands: Vec::new(),
         };
         assert_eq!(m.remotes.len(), 1);
         assert_eq!(m.projects.len(), 2);
@@ -284,6 +286,7 @@ mod tests {
             }],
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         let yaml = serde_yaml::to_string(&m).unwrap();
         let m2: Manifest = serde_yaml::from_str(&yaml).unwrap();
@@ -466,6 +469,7 @@ defaults:
             ],
             imports: Vec::new(),
             group_filter: vec!["+required".into(), "-optional".into()],
+            commands: Vec::new(),
         };
         let filtered = m.filtered_projects();
         let names: Vec<&str> = filtered.iter().map(|p| p.name.as_str()).collect();
@@ -496,6 +500,7 @@ defaults:
             ],
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         let filtered = m.filtered_projects();
         assert_eq!(filtered.len(), 2);
@@ -524,6 +529,7 @@ defaults:
             }],
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         let url = m.project_clone_url(&m.projects[0]).unwrap();
         assert_eq!(url, "https://github.com/org/sdk-core");
@@ -556,6 +562,7 @@ defaults:
             }],
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         let url = m.project_clone_url(&m.projects[0]).unwrap();
         assert_eq!(url, "https://mirror.example.com/sdk-core");
@@ -579,6 +586,7 @@ defaults:
             }],
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         let rev = m.project_revision(&m.projects[0]);
         assert_eq!(rev, Some("main"));
@@ -602,6 +610,7 @@ defaults:
             }],
             imports: Vec::new(),
             group_filter: Vec::new(),
+            commands: Vec::new(),
         };
         let rev = m.project_revision(&m.projects[0]);
         assert_eq!(rev, Some("v2.0"));

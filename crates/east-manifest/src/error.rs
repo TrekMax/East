@@ -53,4 +53,25 @@ pub enum ManifestError {
         /// The path that was already visited.
         path: PathBuf,
     },
+
+    /// A command name is invalid (must match `[a-z][a-z0-9-]*`).
+    #[error("invalid command name: {name} (must match [a-z][a-z0-9-]*)")]
+    InvalidCommandName {
+        /// The invalid name.
+        name: String,
+    },
+
+    /// A command must have exactly one of `exec`, `executable`, or `script`.
+    #[error("command '{name}': exactly one of exec, executable, or script must be set")]
+    CommandMutuallyExclusive {
+        /// The command name.
+        name: String,
+    },
+
+    /// A command uses a reserved or builtin name.
+    #[error("command '{name}' uses a reserved name")]
+    ReservedCommandName {
+        /// The reserved name.
+        name: String,
+    },
 }
