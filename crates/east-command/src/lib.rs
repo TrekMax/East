@@ -10,7 +10,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::error::TemplateError;
-    use crate::registry::{CommandRegistry, CommandSource, ResolvedCommand};
+    use crate::registry::{CommandRegistry, CommandSource};
     use crate::template::TemplateEngine;
 
     // ── CommandRegistry from manifest ───────────────────────────────
@@ -45,8 +45,7 @@ commands:
 
     #[test]
     fn registry_get_missing_returns_none() {
-        let manifest =
-            east_manifest::Manifest::from_yaml_str("version: 1\n").unwrap();
+        let manifest = east_manifest::Manifest::from_yaml_str("version: 1\n").unwrap();
         let registry = CommandRegistry::from_manifest(&manifest);
         assert!(registry.get("nonexistent").is_none());
     }
@@ -82,8 +81,7 @@ commands:
             use std::os::unix::fs::PermissionsExt;
             let path = dir.path().join("east-foo");
             std::fs::write(&path, "#!/bin/sh\necho foo\n").unwrap();
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-                .unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
         #[cfg(windows)]
         {
@@ -91,8 +89,7 @@ commands:
             std::fs::write(&path, "dummy").unwrap();
         }
 
-        let manifest =
-            east_manifest::Manifest::from_yaml_str("version: 1\n").unwrap();
+        let manifest = east_manifest::Manifest::from_yaml_str("version: 1\n").unwrap();
         let mut registry = CommandRegistry::from_manifest(&manifest);
         registry.discover_path(dir.path().to_str().unwrap());
 
@@ -110,12 +107,10 @@ commands:
             use std::os::unix::fs::PermissionsExt;
             let path = dir.path().join("other-tool");
             std::fs::write(&path, "#!/bin/sh\n").unwrap();
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-                .unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        let manifest =
-            east_manifest::Manifest::from_yaml_str("version: 1\n").unwrap();
+        let manifest = east_manifest::Manifest::from_yaml_str("version: 1\n").unwrap();
         let mut registry = CommandRegistry::from_manifest(&manifest);
         registry.discover_path(dir.path().to_str().unwrap());
 
@@ -133,8 +128,7 @@ commands:
             use std::os::unix::fs::PermissionsExt;
             let path = dir.path().join("east-hello");
             std::fs::write(&path, "#!/bin/sh\necho from-path\n").unwrap();
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-                .unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
         #[cfg(windows)]
         {
@@ -165,7 +159,9 @@ commands:
     #[test]
     fn template_no_variables() {
         let engine = TemplateEngine::new();
-        let result = engine.render("hello world", &BTreeMap::new(), "test").unwrap();
+        let result = engine
+            .render("hello world", &BTreeMap::new(), "test")
+            .unwrap();
         assert_eq!(result, "hello world");
     }
 
