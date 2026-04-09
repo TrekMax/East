@@ -130,6 +130,14 @@ fn init_creates_workspace_from_local_manifest_repo() {
         "project {project_name} should be cloned"
     );
     assert!(workspace.path().join(&project_name).join("lib.rs").exists());
+    // state.toml should exist with schema_version = 1
+    let state_path = workspace.path().join(".east/state.toml");
+    assert!(state_path.exists(), "state.toml should be created by init");
+    let state_content = fs::read_to_string(&state_path).unwrap();
+    assert!(
+        state_content.contains("schema_version = 1"),
+        "state.toml should contain schema_version = 1"
+    );
 }
 
 #[test]

@@ -179,6 +179,14 @@ async fn cmd_init(manifest_source: &str) -> miette::Result<()> {
     Workspace::init(&cwd)
         .into_diagnostic()
         .wrap_err("failed to initialize workspace")?;
+
+    // Create initial state.toml
+    let state = east_workspace::State::default();
+    state
+        .save_to_file(&cwd.join(".east/state.toml"))
+        .into_diagnostic()
+        .wrap_err("failed to create state.toml")?;
+
     info!("initialized east workspace at {}", cwd.display());
 
     // Run update to clone all projects
