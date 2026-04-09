@@ -14,7 +14,7 @@ use east_manifest::Manifest;
 use east_vcs::Git;
 use east_workspace::Workspace;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use miette::{bail, IntoDiagnostic, WrapErr};
+use miette::{IntoDiagnostic, WrapErr, bail};
 use tokio::sync::Semaphore;
 use tracing::info;
 
