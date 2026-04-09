@@ -62,4 +62,6 @@ jobs:
         with:
           toolchain: "1.82.0"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo doc --no-deps --workspace -D warnings
+      - run: cargo doc --no-deps --workspace
+        env:
+          RUSTDOCFLAGS: "-D warnings"
