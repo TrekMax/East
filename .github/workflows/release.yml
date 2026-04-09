@@ -34,6 +34,9 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: east.exe
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            artifact: east.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
@@ -121,8 +126,138 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
           ls -la release/
 
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > checksums-sha256.txt
+          cat checksums-sha256.txt
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+
+          # Find the previous tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v' | sed -n '2p')
+
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="$TAG_NAME"
+          else
+            RANGE="${PREV_TAG}..${TAG_NAME}"
+          fi
+
+          # Collect commits by category
+          FEATS=""
+          FIXES=""
+          DOCS=""
+          OTHERS=""
+
+          while IFS= read -r line; do
+            # Extract short hash and message
+            HASH=$(echo "$line" | cut -d' ' -f1)
+            MSG=$(echo "$line" | cut -d' ' -f2-)
+
+            case "$MSG" in
+              feat*)  FEATS="${FEATS}- ${MSG} (\`${HASH}\`)"$'\n' ;;
+              fix*)   FIXES="${FIXES}- ${MSG} (\`${HASH}\`)"$'\n' ;;
+              docs*)  DOCS="${DOCS}- ${MSG} (\`${HASH}\`)"$'\n' ;;
+              *)      OTHERS="${OTHERS}- ${MSG} (\`${HASH}\`)"$'\n' ;;
+            esac
+          done < <(git log --oneline "$RANGE")
+
+          # Build release notes
+          {
+            echo "## What's Changed in ${TAG_NAME}"
+            echo ""
+
+            if [ -n "$FEATS" ]; then
+              echo "### ✨ New Features"
+              echo "$FEATS"
+            fi
+
+            if [ -n "$FIXES" ]; then
+              echo "### 🐛 Bug Fixes"
+              echo "$FIXES"
+            fi
+
+            if [ -n "$DOCS" ]; then
+              echo "### 📚 Documentation"
+              echo "$DOCS"
+            fi
+
+            if [ -n "$OTHERS" ]; then
+              echo "### 🔧 Other Changes"
+              echo "$OTHERS"
+            fi
+
+            echo "---"
+            echo ""
+            echo "### 📦 Installation"
+            echo ""
+            echo '```sh'
+            echo "cargo install east-cli"
+            echo '```'
+            echo ""
+            echo "Or download a prebuilt binary from the assets below."
+            echo ""
+            echo "| Platform | Architecture | Asset |"
+            echo "|----------|-------------|-------|"
+            echo "| Linux | x64 | \`east-x86_64-unknown-linux-gnu.tar.gz\` |"
+            echo "| Linux | ARM64 | \`east-aarch64-unknown-linux-gnu.tar.gz\` |"
+            echo "| macOS | Intel | \`east-x86_64-apple-darwin.tar.gz\` |"
+            echo "| macOS | Apple Silicon | \`east-aarch64-apple-darwin.tar.gz\` |"
+            echo "| macOS | Universal | \`east-universal-apple-darwin.tar.gz\` |"
+            echo "| Windows | x64 | \`east-x86_64-pc-windows-msvc.zip\` |"
+            echo "| Windows | ARM64 | \`east-aarch64-pc-windows-msvc.zip\` |"
+            echo ""
+            echo "**Checksums**: See \`checksums-sha256.txt\` for SHA-256 verification."
+          } > release_notes.md
+
+          # Export for gh-release
+          echo "notes_file=release_notes.md" >> "$GITHUB_OUTPUT"
+
       - uses: softprops/action-gh-release@v2
         with:
           draft: false
-          generate_release_notes: true
+          body_path: release_notes.md
           files: release/*
+
+  publish:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.82.0"
+
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          # Publish leaf crates first (no internal deps), then dependents.
+          # --no-verify skips a full rebuild inside the publish step since
+          # CI already verified the build in the matrix above.
+          LEAF_CRATES=(
+            east-manifest
+            east-vcs
+            east-config
+            east-workspace
+            east-runner
+            east-build
+          )
+
+          for crate in "${LEAF_CRATES[@]}"; do
+            echo "Publishing ${crate}..."
+            cargo publish -p "$crate" --no-verify || echo "Skipped ${crate} (already published or unchanged)"
+            sleep 15  # wait for crates.io index to update
+          done
+
+          echo "Publishing east-command..."
+          cargo publish -p east-command --no-verify || echo "Skipped east-command"
+          sleep 15
+
+          echo "Publishing east-cli..."
+          cargo publish -p east-cli --no-verify || echo "Skipped east-cli"

@@ -23,9 +23,8 @@ impl Git {
     ///
     /// Returns [`VcsError`] if the git command fails.
     pub async fn clone(url: &str, dest: &Path, revision: Option<&str>) -> Result<(), VcsError> {
-        let is_sha = revision.is_some_and(|r| {
-            r.len() >= 40 && r.chars().all(|c| c.is_ascii_hexdigit())
-        });
+        let is_sha =
+            revision.is_some_and(|r| r.len() >= 40 && r.chars().all(|c| c.is_ascii_hexdigit()));
 
         let mut cmd = Command::new("git");
         cmd.arg("clone");
