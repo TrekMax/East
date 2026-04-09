@@ -11,21 +11,21 @@ name = "east"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = ">=4.4, <4.5.24", features = ["derive"] }
-miette = { version = ">=7.0, <7.5", features = ["fancy"] }
+clap.workspace = true
 east-command = { path = "../east-command" }
 east-config = { path = "../east-config" }
 east-manifest = { path = "../east-manifest" }
 east-vcs = { path = "../east-vcs" }
 east-workspace = { path = "../east-workspace" }
-indicatif = "0.17"
-serde_yaml = "0.9"
-tempfile = ">=3.10, <3.19"
-tokio = { version = "1", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+indicatif.workspace = true
+miette.workspace = true
+serde_yaml.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
-assert_cmd = ">=2.0, <2.1"
-predicates = ">=3.0, <3.2"
-tempfile = ">=3.10, <3.19"
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true

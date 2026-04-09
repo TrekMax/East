@@ -7,12 +7,12 @@ repository.workspace = true
 description = "Manifest data model, YAML parsing, and import resolution for east"
 
 [dependencies]
-glob-match = "0.2"
-miette = { version = ">=7.0, <7.5", features = ["derive"] }
-regex-lite = "0.1"
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
-thiserror = "2"
+glob-match.workspace = true
+miette.workspace = true
+regex-lite.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-tempfile = ">=3.10, <3.19"
+tempfile.workspace = true

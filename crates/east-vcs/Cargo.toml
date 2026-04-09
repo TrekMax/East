@@ -7,9 +7,9 @@ repository.workspace = true
 description = "Git operations via shell-out to system git for east"
 
 [dependencies]
-thiserror = "2"
-tokio = { version = "1", features = ["process"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["process"] }
 
 [dev-dependencies]
-tempfile = ">=3.10, <3.19"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
