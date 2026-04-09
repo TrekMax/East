@@ -1,19 +1,17 @@
 # east
 
-面向 MCU/SoC 开发的、SDK 无关的、用 Rust 编写的快速多仓库与工具链前端。
+快速、高扩展性的多仓库工作区管理工具，使用 Rust 编写。
 
 [English](README.md)
 
 ## 概述
 
-`east` 是一个通用框架，服务于任何需要以下能力的 MCU SDK：
+`east` 是一个通用的工作区管理工具，适用于任何需要以下能力的项目：
 
 1. **多仓库管理** — manifest 驱动，支持并发 fetch
 2. **扩展命令机制** — 在 manifest 中定义自定义命令
 3. **分层配置系统** — workspace、用户与项目级别的 TOML 配置
-4. **可插拔的 runner 抽象** — 通过 OpenOCD、串口 ISP 等进行 flash / debug / attach / reset
-
-灵感来源于 Zephyr 的 `west`，但**刻意不是** `west` 的克隆。`east` 与 SDK 无关，主要面向 RISC-V MCU。
+4. **可插拔的 runner 抽象** — 可扩展的任务执行框架
 
 ## 状态
 
@@ -68,7 +66,7 @@ cargo build --release
 
 - Linux（x86_64、aarch64）
 - macOS（universal）
-- Windows（x86_64）
+- Windows（x86_64、aarch64）
 
 ## 许可证
 

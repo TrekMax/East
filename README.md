@@ -1,19 +1,17 @@
 # east
 
-A fast, SDK-agnostic multi-repo and toolchain front-end for MCU/SoC development, written in Rust.
+A fast, extensible multi-repo workspace manager written in Rust.
 
 [中文版](README.zh-CN.md)
 
 ## Overview
 
-`east` is a general-purpose framework for any MCU SDK that needs:
+`east` is a general-purpose workspace management tool for any project that needs:
 
 1. **Multi-repo management** — manifest-driven, with concurrent fetch
 2. **Extension command mechanism** — define custom commands in your manifest
 3. **Layered configuration system** — workspace, user, and project-level TOML config
-4. **Pluggable runner abstraction** — flash / debug / attach / reset via OpenOCD, serial ISP, etc.
-
-Inspired by Zephyr's `west`, but deliberately **not** a `west` clone. `east` is SDK-agnostic and targets RISC-V MCUs as a primary use case.
+4. **Pluggable runner abstraction** — extensible task execution framework
 
 ## Status
 
@@ -68,7 +66,7 @@ The output is a single static binary with no Python runtime dependency.
 
 - Linux (x86_64, aarch64)
 - macOS (universal)
-- Windows (x86_64)
+- Windows (x86_64, aarch64)
 
 ## License
 
