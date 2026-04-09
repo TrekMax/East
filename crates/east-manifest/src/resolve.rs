@@ -24,6 +24,7 @@ pub fn resolve(path: impl AsRef<Path>) -> Result<Manifest, ManifestError> {
     let mut visited = HashSet::new();
     let mut seen_project_names: HashSet<String> = HashSet::new();
     let mut all_projects = Vec::new();
+    let mut all_commands = Vec::new();
 
     // BFS-like queue: (manifest_file_path,)
     let mut queue: VecDeque<(PathBuf, Vec<String>)> = VecDeque::new();
@@ -45,7 +46,7 @@ pub fn resolve(path: impl AsRef<Path>) -> Result<Manifest, ManifestError> {
             path: manifest_path.clone(),
             source: e,
         })?;
-        let manifest = Manifest::from_yaml_str(&content)?;
+        let mut manifest = Manifest::from_yaml_str(&content)?;
 
         let manifest_dir = manifest_path
             .parent()
@@ -62,6 +63,12 @@ pub fn resolve(path: impl AsRef<Path>) -> Result<Manifest, ManifestError> {
                 all_projects.push(project.clone());
             }
         }
+
+        // Collect commands, stamping declared_in with this manifest's path
+        for cmd in &mut manifest.commands {
+            cmd.declared_in = Some(manifest_path.clone());
+        }
+        all_commands.append(&mut manifest.commands);
 
         // Queue child imports
         for import in &manifest.imports {
@@ -85,6 +92,7 @@ pub fn resolve(path: impl AsRef<Path>) -> Result<Manifest, ManifestError> {
         commands: Vec::new(),
     });
     result.projects = all_projects;
+    result.commands = all_commands;
 
     Ok(result)
 }

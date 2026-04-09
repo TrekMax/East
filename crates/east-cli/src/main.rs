@@ -468,6 +468,7 @@ async fn cmd_external(args: &[String]) -> anyhow::Result<()> {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn dispatch_manifest_command(
     decl: &east_manifest::CommandDecl,
     vars: &BTreeMap<String, String>,
@@ -530,8 +531,13 @@ async fn dispatch_manifest_command(
         }
     } else if let Some(script_path) = &decl.script {
         // Script path is relative to the manifest that declared it
-        // For now, resolve relative to workspace root (since we only have top-level manifest in Phase 2)
-        let resolved_script = workspace_root.join(script_path);
+        let declaring_manifest = decl.declared_in.as_deref().unwrap_or(workspace_root);
+        let mrp =
+            east_manifest::path_resolve::ManifestRelativePath::new(declaring_manifest, script_path);
+        let resolved_script = mrp.resolve().context(format!(
+            "failed to resolve script '{}' for command '{}'",
+            script_path, decl.name
+        ))?;
         let mut cmd = tokio::process::Command::new(&resolved_script);
         cmd.current_dir(&work_dir);
         for arg in extra_args {

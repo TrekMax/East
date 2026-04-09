@@ -120,6 +120,9 @@ pub struct CommandDecl {
     /// Working directory for exec/script (supports template variables).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
+    /// The manifest file that declared this command (populated at resolve time, not from YAML).
+    #[serde(skip)]
+    pub declared_in: Option<std::path::PathBuf>,
 }
 
 /// Top-level east manifest (`east.yml`).
