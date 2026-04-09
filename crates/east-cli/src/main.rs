@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
+use east_config::path::DefaultPathProvider;
+use east_config::{Config, ConfigLayer, ConfigValue};
 use east_manifest::Manifest;
 use east_vcs::Git;
 use east_workspace::Workspace;
@@ -46,6 +48,49 @@ enum Commands {
         #[arg(long)]
         resolve: bool,
     },
+    /// Read or write configuration values.
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Get a configuration value.
+    Get {
+        /// Dotted key (e.g. user.name).
+        key: String,
+    },
+    /// Set a configuration value.
+    Set {
+        /// Parse the value as an integer.
+        #[arg(long)]
+        int: bool,
+        /// Parse the value as a boolean.
+        #[arg(long = "bool")]
+        as_bool: bool,
+        /// Parse the value as a float.
+        #[arg(long)]
+        float: bool,
+        /// Target layer (global or workspace). Defaults to global.
+        #[arg(long, default_value = "global")]
+        layer: String,
+        /// Dotted key.
+        key: String,
+        /// Value to set.
+        value: String,
+    },
+    /// Remove a configuration value.
+    Unset {
+        /// Target layer. Defaults to global.
+        #[arg(long, default_value = "global")]
+        layer: String,
+        /// Dotted key.
+        key: String,
+    },
+    /// List all configuration values.
+    List,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -79,6 +124,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 bail!("use --resolve to print the resolved manifest")
             }
         }
+        Commands::Config { action } => cmd_config(action),
     }
 }
 
@@ -278,4 +324,66 @@ fn cmd_manifest_resolve() -> anyhow::Result<()> {
     let yaml = serde_yaml::to_string(&manifest).context("failed to serialize resolved manifest")?;
     print!("{yaml}");
     Ok(())
+}
+
+fn cmd_config(action: ConfigAction) -> anyhow::Result<()> {
+    let workspace_root = Workspace::discover(&std::env::current_dir()?)
+        .ok()
+        .map(|ws| ws.root().to_path_buf());
+    let provider = DefaultPathProvider::new(workspace_root);
+    let mut config = Config::load_with_provider(&provider).context("failed to load config")?;
+
+    match action {
+        ConfigAction::Get { key } => {
+            let value = config
+                .get(&key)
+                .ok_or_else(|| anyhow::anyhow!("key not found: {key}"))?;
+            println!("{value}");
+        }
+        ConfigAction::Set {
+            int,
+            as_bool,
+            float,
+            layer,
+            key,
+            value,
+        } => {
+            let config_value = if int {
+                ConfigValue::Integer(value.parse().context(format!("invalid integer: {value}"))?)
+            } else if as_bool {
+                ConfigValue::Boolean(value.parse().context(format!("invalid boolean: {value}"))?)
+            } else if float {
+                ConfigValue::Float(value.parse().context(format!("invalid float: {value}"))?)
+            } else {
+                ConfigValue::String(value)
+            };
+            let layer = parse_layer(&layer)?;
+            config.set(layer, &key, config_value);
+            config
+                .save(&provider, layer)
+                .context("failed to save config")?;
+        }
+        ConfigAction::Unset { layer, key } => {
+            let layer = parse_layer(&layer)?;
+            config.unset(layer, &key);
+            config
+                .save(&provider, layer)
+                .context("failed to save config")?;
+        }
+        ConfigAction::List => {
+            for (key, value) in config.iter() {
+                println!("{key} = {value}");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_layer(s: &str) -> anyhow::Result<ConfigLayer> {
+    match s {
+        "system" => Ok(ConfigLayer::System),
+        "global" => Ok(ConfigLayer::Global),
+        "workspace" => Ok(ConfigLayer::Workspace),
+        _ => bail!("unknown layer: {s} (expected: system, global, workspace)"),
+    }
 }
