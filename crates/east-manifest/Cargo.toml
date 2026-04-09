@@ -5,3 +5,8 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Manifest data model, YAML parsing, and import resolution for east"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "2"
