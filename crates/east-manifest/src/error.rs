@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
+use miette::Diagnostic;
 use thiserror::Error;
 
 /// Errors that can occur when parsing or validating a manifest.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Diagnostic)]
 #[allow(clippy::module_name_repetitions)]
 pub enum ManifestError {
     /// YAML deserialization failed.

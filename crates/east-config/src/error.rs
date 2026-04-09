@@ -1,7 +1,8 @@
+use miette::Diagnostic;
 use thiserror::Error;
 
 /// Errors from configuration operations.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Diagnostic)]
 #[allow(clippy::module_name_repetitions)]
 pub enum ConfigError {
     /// Filesystem I/O error.

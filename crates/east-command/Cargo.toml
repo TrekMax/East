@@ -9,6 +9,7 @@ description = "Command trait, extension discovery, and template engine for east"
 [dependencies]
 east-config = { path = "../east-config" }
 east-manifest = { path = "../east-manifest" }
+miette = { version = ">=7.0, <7.5", features = ["derive"] }
 thiserror = "2"
 tracing = "0.1"
 

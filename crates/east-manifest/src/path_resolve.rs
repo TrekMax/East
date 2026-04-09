@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use miette::Diagnostic;
 use thiserror::Error;
 
 /// Error resolving a manifest-relative path.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Diagnostic)]
 #[allow(clippy::module_name_repetitions)]
 pub enum PathResolveError {
     /// The resolved path does not exist or cannot be canonicalized.

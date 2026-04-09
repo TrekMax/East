@@ -259,6 +259,7 @@ version = "0.0.1"
 dependencies = [
  "east-config",
  "east-manifest",
+ "miette",
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
@@ -268,6 +269,7 @@ dependencies = [
 name = "east-config"
 version = "0.0.1"
 dependencies = [
+ "miette",
  "tempfile",
  "thiserror 2.0.18",
  "toml",
@@ -278,6 +280,7 @@ name = "east-manifest"
 version = "0.0.1"
 dependencies = [
  "glob-match",
+ "miette",
  "regex-lite",
  "serde",
  "serde_yaml",
