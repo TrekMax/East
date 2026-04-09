@@ -39,7 +39,13 @@ east config get user.name
 
 ## Installation
 
-### From Git (recommended)
+### From crates.io (recommended)
+
+```bash
+cargo install east-cli
+```
+
+### From Git
 
 ```bash
 cargo install --git https://github.com/TrekMax/East east-cli
