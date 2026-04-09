@@ -17,7 +17,27 @@ Inspired by Zephyr's `west`, but deliberately **not** a `west` clone. `east` is 
 
 ## Status
 
-**Phase 1** — in progress. Multi-repo management (`east init`, `east update`, `east list`, `east status`, `east manifest --resolve`).
+**Phase 2** — complete.
+
+- **Phase 1:** Multi-repo management — `east init`, `east update`, `east list`, `east status`, `east manifest --resolve`
+- **Phase 2:** Configuration & extension commands — `east config get/set/unset/list`, manifest-declared commands (`exec`/`script`/`executable`), PATH-based `east-<name>` discovery, template engine
+
+## Quick Start
+
+```bash
+# Initialize a workspace from a manifest repo
+east init https://github.com/your-org/sdk-manifest
+
+# Update all projects
+east update
+
+# Run a manifest-declared command
+east hello
+
+# Configure
+east config set user.name trekmax
+east config get user.name
+```
 
 ## Building
 

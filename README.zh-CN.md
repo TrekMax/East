@@ -17,7 +17,27 @@
 
 ## 状态
 
-**Phase 1** — 进行中。多仓库管理（`east init`、`east update`、`east list`、`east status`、`east manifest --resolve`）。
+**Phase 2** — 已完成。
+
+- **Phase 1：** 多仓库管理 — `east init`、`east update`、`east list`、`east status`、`east manifest --resolve`
+- **Phase 2：** 配置与扩展命令 — `east config get/set/unset/list`、manifest 声明命令（`exec`/`script`/`executable`）、PATH 上的 `east-<name>` 发现、模板引擎
+
+## 快速开始
+
+```bash
+# 从 manifest 仓库初始化工作空间
+east init https://github.com/your-org/sdk-manifest
+
+# 更新所有项目
+east update
+
+# 运行 manifest 中声明的命令
+east hello
+
+# 配置
+east config set user.name trekmax
+east config get user.name
+```
 
 ## 构建
 
