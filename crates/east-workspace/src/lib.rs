@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 //! `.east/` directory, workspace discovery, and state for east.
 
+pub mod error;
+mod workspace;
+
+pub use workspace::Workspace;
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -64,7 +69,10 @@ mod tests {
         fs::create_dir_all(dir.path().join(".east")).unwrap();
 
         let ws = Workspace::discover(dir.path()).unwrap();
-        assert_eq!(ws.east_dir(), dir.path().canonicalize().unwrap().join(".east"));
+        assert_eq!(
+            ws.east_dir(),
+            dir.path().canonicalize().unwrap().join(".east")
+        );
     }
 
     #[test]
