@@ -39,7 +39,13 @@ east config get user.name
 
 ## 安装
 
-### 从 Git 安装（推荐）
+### 从 crates.io 安装（推荐）
+
+```bash
+cargo install east-cli
+```
+
+### 从 Git 安装
 
 ```bash
 cargo install --git https://github.com/TrekMax/East east-cli
