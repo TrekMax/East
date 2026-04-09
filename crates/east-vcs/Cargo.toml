@@ -5,3 +5,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Git operations via shell-out to system git for east"
+
+[dependencies]
+thiserror = "2"
+tokio = { version = "1", features = ["process"] }
+
+[dev-dependencies]
+tempfile = ">=3.10, <3.19"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
