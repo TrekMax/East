@@ -181,4 +181,125 @@ mod tests {
         );
         assert_eq!(base.get("extra.key").and_then(ConfigValue::as_i64), Some(1));
     }
+
+    // ── TOML load/save round-trip (P2-04) ───────────────────────────
+
+    #[test]
+    fn store_from_toml_string() {
+        let toml = r#"
+[user]
+name = "trekmax"
+email = "t@e.com"
+
+[update]
+parallelism = 8
+"#;
+        let store = ConfigStore::from_toml_str(toml).unwrap();
+        assert_eq!(
+            store.get("user.name").and_then(ConfigValue::as_str),
+            Some("trekmax")
+        );
+        assert_eq!(
+            store.get("user.email").and_then(ConfigValue::as_str),
+            Some("t@e.com")
+        );
+        assert_eq!(
+            store.get("update.parallelism").and_then(ConfigValue::as_i64),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn store_from_toml_dotted_keys() {
+        let toml = r#"
+user.name = "trekmax"
+user.email = "t@e.com"
+"#;
+        let store = ConfigStore::from_toml_str(toml).unwrap();
+        assert_eq!(
+            store.get("user.name").and_then(ConfigValue::as_str),
+            Some("trekmax")
+        );
+    }
+
+    #[test]
+    fn store_from_toml_with_bool_and_float() {
+        let toml = r#"
+feature.enabled = true
+feature.threshold = 1.5
+"#;
+        let store = ConfigStore::from_toml_str(toml).unwrap();
+        assert_eq!(
+            store.get("feature.enabled").and_then(ConfigValue::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            store.get("feature.threshold").and_then(ConfigValue::as_f64),
+            Some(1.5)
+        );
+    }
+
+    #[test]
+    fn store_to_toml_and_back() {
+        let mut store = ConfigStore::new();
+        store.set("user.name", ConfigValue::String("trekmax".into()));
+        store.set("user.email", ConfigValue::String("t@e.com".into()));
+        store.set("update.parallelism", ConfigValue::Integer(4));
+        store.set("flag", ConfigValue::Boolean(true));
+
+        let toml_str = store.to_toml_string().unwrap();
+        let store2 = ConfigStore::from_toml_str(&toml_str).unwrap();
+
+        assert_eq!(
+            store2.get("user.name").and_then(ConfigValue::as_str),
+            Some("trekmax")
+        );
+        assert_eq!(
+            store2.get("update.parallelism").and_then(ConfigValue::as_i64),
+            Some(4)
+        );
+        assert_eq!(
+            store2.get("flag").and_then(ConfigValue::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn store_save_and_load_file() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("config.toml");
+
+        let mut store = ConfigStore::new();
+        store.set("user.name", ConfigValue::String("trekmax".into()));
+        store.set("level", ConfigValue::Integer(42));
+
+        store.save_to_file(&path).unwrap();
+        assert!(path.exists());
+
+        let loaded = ConfigStore::load_from_file(&path).unwrap();
+        assert_eq!(
+            loaded.get("user.name").and_then(ConfigValue::as_str),
+            Some("trekmax")
+        );
+        assert_eq!(
+            loaded.get("level").and_then(ConfigValue::as_i64),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn store_load_missing_file_returns_empty() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("nonexistent.toml");
+
+        let store = ConfigStore::load_from_file(&path).unwrap();
+        assert!(store.get("anything").is_none());
+    }
+
+    #[test]
+    fn store_from_toml_invalid_syntax_errors() {
+        let toml = "this is not valid toml [[[";
+        let result = ConfigStore::from_toml_str(toml);
+        assert!(result.is_err());
+    }
 }
