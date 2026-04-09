@@ -1,6 +1,6 @@
 # east
 
-快速、高扩展性的多仓库工作区管理工具，使用 Rust 编写。
+快速、manifest 驱动的开发工具集，使用 Rust 编写。
 
 [English](README.md)
 

@@ -1,6 +1,6 @@
 # east
 
-A fast, extensible multi-repo workspace manager written in Rust.
+A fast, manifest-driven development toolkit written in Rust.
 
 [中文版](README.zh-CN.md)
 
