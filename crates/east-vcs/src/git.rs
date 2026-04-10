@@ -24,11 +24,40 @@ impl Git {
     ///
     /// Returns [`VcsError`] if the git command fails.
     pub async fn clone(url: &str, dest: &Path, revision: Option<&str>) -> Result<(), VcsError> {
+        Self::clone_inner(url, dest, revision, false).await
+    }
+
+    /// Clone with git progress output visible to the user.
+    ///
+    /// Use this for single interactive operations (e.g. `east init -m`).
+    /// Do NOT use in concurrent contexts (e.g. `east update`) where
+    /// multiple clones run in parallel — progress output will collide.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn clone_verbose(
+        url: &str,
+        dest: &Path,
+        revision: Option<&str>,
+    ) -> Result<(), VcsError> {
+        Self::clone_inner(url, dest, revision, true).await
+    }
+
+    async fn clone_inner(
+        url: &str,
+        dest: &Path,
+        revision: Option<&str>,
+        verbose: bool,
+    ) -> Result<(), VcsError> {
         let is_sha =
             revision.is_some_and(|r| r.len() >= 40 && r.chars().all(|c| c.is_ascii_hexdigit()));
 
         let mut cmd = Command::new("git");
-        cmd.args(["clone", "--progress"]);
+        cmd.arg("clone");
+        if verbose {
+            cmd.arg("--progress");
+        }
         if let Some(rev) = revision {
             if !is_sha {
                 cmd.args(["--single-branch", "-b", rev]);
@@ -37,7 +66,11 @@ impl Git {
         cmd.arg(url);
         cmd.arg(dest);
 
-        run_git_progress(cmd, dest).await?;
+        if verbose {
+            run_git_progress(cmd, dest).await?;
+        } else {
+            run_git(cmd, dest).await?;
+        }
 
         // For SHA revisions, checkout the specific commit after cloning
         if is_sha {
@@ -96,9 +129,9 @@ impl Git {
         let mut cmd = Command::new("git");
         cmd.args(["-C"]);
         cmd.arg(repo_path);
-        cmd.args(["fetch", "--progress", "origin"]);
+        cmd.args(["fetch", "origin"]);
 
-        run_git_progress(cmd, repo_path).await
+        run_git(cmd, repo_path).await
     }
 
     /// Checkout a specific revision in the repository at `repo_path`.
@@ -194,20 +227,13 @@ impl Git {
         revision: Option<&str>,
     ) -> Result<(), VcsError> {
         let mut cmd = Command::new("git");
-        cmd.args([
-            "clone",
-            "--progress",
-            "--depth",
-            "1",
-            "--filter=blob:none",
-            "--sparse",
-        ]);
+        cmd.args(["clone", "--depth", "1", "--filter=blob:none", "--sparse"]);
         if let Some(rev) = revision {
             cmd.args(["--single-branch", "--branch", rev]);
         }
         cmd.arg(url);
         cmd.arg(dest);
-        run_git_progress(cmd, dest).await?;
+        run_git(cmd, dest).await?;
 
         // git -C <dest> sparse-checkout set --no-cone <file>
         // --no-cone is required to match individual files (cone mode only matches directories)

@@ -302,7 +302,7 @@ async fn cmd_init_remote(
     let clone_dest = workspace_root.join(repo_name);
 
     eprintln!("cloning manifest repository into {repo_name}/...");
-    Git::clone(url, &clone_dest, revision)
+    Git::clone_verbose(url, &clone_dest, revision)
         .await
         .into_diagnostic()
         .wrap_err("failed to clone manifest repository")?;
