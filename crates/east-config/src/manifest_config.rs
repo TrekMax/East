@@ -79,8 +79,10 @@ fn validate_manifest_path(path: &str) -> Result<(), ConfigError> {
         });
     }
 
+    // Check for absolute paths: std::path considers /foo absolute on Unix
+    // but not on Windows, so also check for leading / or \ explicitly.
     let p = Path::new(path);
-    if p.is_absolute() {
+    if p.is_absolute() || path.starts_with('/') || path.starts_with('\\') {
         return Err(ConfigError::InvalidManifestPath {
             path: path.to_string(),
             reason: "path must be relative, not absolute".to_string(),
