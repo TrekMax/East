@@ -304,8 +304,11 @@ dependencies = [
 name = "east-workspace"
 version = "0.1.2"
 dependencies = [
+ "miette",
+ "serde",
  "tempfile",
  "thiserror",
+ "toml",
 ]
 
 [[package]]
