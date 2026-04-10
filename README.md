@@ -24,7 +24,10 @@ A fast, manifest-driven development toolkit written in Rust.
 
 ```bash
 # Initialize a workspace from a manifest repo
-east init https://github.com/your-org/sdk-manifest
+east init https://github.com/your-org/manifest
+
+# Initialize from a specific branch
+east init https://github.com/your-org/manifest -r develop
 
 # Update all projects
 east update

@@ -24,7 +24,10 @@
 
 ```bash
 # 从 manifest 仓库初始化工作空间
-east init https://github.com/your-org/sdk-manifest
+east init https://github.com/your-org/manifest
+
+# 从指定分支初始化
+east init https://github.com/your-org/manifest -r develop
 
 # 更新所有项目
 east update

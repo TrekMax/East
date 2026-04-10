@@ -131,9 +131,10 @@ Phase 1 所需操作：
 
 ## 6. CLI 命令
 
-### `east init <manifest-url-or-path>`
+### `east init <manifest-url-or-path> [-r <revision>]`
 
 1. 克隆 manifest 仓库（或复制本地 manifest 文件）到当前目录。
+   指定 `-r` / `--revision` 时，从指定分支或标签获取。
 2. 创建 `.east/` 目录和 `state.toml`。
 3. 隐式运行 `east update`。
 

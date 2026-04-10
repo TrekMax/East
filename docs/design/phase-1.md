@@ -131,9 +131,10 @@ All git commands return `Result<Output>` wrapping the process exit code, stdout,
 
 ## 6. CLI Commands
 
-### `east init <manifest-url-or-path>`
+### `east init <manifest-url-or-path> [-r <revision>]`
 
 1. Clone the manifest repository (or copy a local manifest file) into the current directory.
+   When `-r` / `--revision` is given, fetches the specified branch or tag.
 2. Create `.east/` directory and `state.toml`.
 3. Run `east update` implicitly.
 

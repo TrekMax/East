@@ -21,7 +21,7 @@ use tracing::info;
 /// Maximum concurrent git operations.
 const MAX_CONCURRENT_GIT: usize = 8;
 
-/// A fast, SDK-agnostic multi-repo and toolchain front-end for MCU/SoC development.
+/// A fast, manifest-driven development toolkit.
 #[derive(Parser)]
 #[command(name = "east", version, about)]
 struct Cli {
@@ -40,6 +40,9 @@ enum Commands {
     Init {
         /// URL or local path to the manifest repository.
         manifest: String,
+        /// Branch or tag to use when fetching from a remote repository.
+        #[arg(short, long)]
+        revision: Option<String>,
     },
     /// Update (fetch/checkout) all projects in the workspace.
     Update,
@@ -121,7 +124,7 @@ fn main() -> miette::Result<()> {
 
 async fn run(cli: Cli) -> miette::Result<()> {
     match cli.command {
-        Commands::Init { manifest } => cmd_init(&manifest).await,
+        Commands::Init { manifest, revision } => cmd_init(&manifest, revision.as_deref()).await,
         Commands::Update => cmd_update().await,
         Commands::List => cmd_list(),
         Commands::Status => cmd_status().await,
@@ -137,7 +140,7 @@ async fn run(cli: Cli) -> miette::Result<()> {
     }
 }
 
-async fn cmd_init(manifest_source: &str) -> miette::Result<()> {
+async fn cmd_init(manifest_source: &str, revision: Option<&str>) -> miette::Result<()> {
     let cwd = std::env::current_dir().into_diagnostic()?;
     let manifest_path = PathBuf::from(manifest_source);
 
@@ -161,7 +164,7 @@ async fn cmd_init(manifest_source: &str) -> miette::Result<()> {
             .into_diagnostic()
             .wrap_err("failed to create temp dir")?;
         let clone_dest = temp_dir.path().join("manifest");
-        Git::fetch_file(manifest_source, "east.yml", &clone_dest)
+        Git::fetch_file(manifest_source, "east.yml", &clone_dest, revision)
             .await
             .into_diagnostic()
             .wrap_err("failed to fetch east.yml from manifest repository")?;
