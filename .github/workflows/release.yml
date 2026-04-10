@@ -21,22 +21,28 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: east
+            asset_name: east-x86_64-unknown-linux-gnu
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: east
+            asset_name: east-aarch64-unknown-linux-gnu
             cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
             artifact: east
+            asset_name: east-x86_64-apple-darwin
           - target: aarch64-apple-darwin
             os: macos-latest
             artifact: east
+            asset_name: east-aarch64-apple-darwin
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: east.exe
+            asset_name: east-x86_64-pc-windows-msvc.exe
           - target: aarch64-pc-windows-msvc
             os: windows-latest
             artifact: east.exe
+            asset_name: east-aarch64-pc-windows-msvc.exe
     steps:
       - uses: actions/checkout@v6
 
@@ -61,26 +67,15 @@ jobs:
         if: matrix.cross
         run: cross build --release --target ${{ matrix.target }}
 
-      - name: Package (unix)
-        if: runner.os != 'Windows'
-        run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../east-${{ matrix.target }}.tar.gz ${{ matrix.artifact }}
-          cd ../../..
-
-      - name: Package (windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd target/${{ matrix.target }}/release
-          7z a ../../../east-${{ matrix.target }}.zip ${{ matrix.artifact }}
-          cd ../../..
+      - name: Rename artifact
+        shell: bash
+        run: cp target/${{ matrix.target }}/release/${{ matrix.artifact }} ${{ matrix.asset_name }}
 
       - uses: actions/upload-artifact@v7
         with:
-          name: east-${{ matrix.target }}
-          path: east-${{ matrix.target }}.*
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
 
-  # Create a macOS universal binary from the two arch-specific builds
   macos-universal:
     name: macOS Universal Binary
     needs: build
@@ -95,17 +90,13 @@ jobs:
 
       - name: Create universal binary
         run: |
-          tar xzf east-x86_64-apple-darwin.tar.gz
-          mv east east-x86_64
-          tar xzf east-aarch64-apple-darwin.tar.gz
-          mv east east-aarch64
-          lipo -create east-x86_64 east-aarch64 -output east
-          tar czf east-universal-apple-darwin.tar.gz east
+          lipo -create east-x86_64-apple-darwin east-aarch64-apple-darwin -output east-universal-apple-darwin
+          chmod +x east-universal-apple-darwin
 
       - uses: actions/upload-artifact@v7
         with:
           name: east-universal-apple-darwin
-          path: east-universal-apple-darwin.tar.gz
+          path: east-universal-apple-darwin
 
   release:
     name: GitHub Release
@@ -123,17 +114,10 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          find artifacts -type f -not -name '*.json' -exec cp {} release/ \;
           ls -la release/
 
-      - name: Generate checksums
-        run: |
-          cd release
-          sha256sum * > checksums-sha256.txt
-          cat checksums-sha256.txt
-
       - name: Generate release notes
-        id: notes
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
 
@@ -153,7 +137,6 @@ jobs:
           OTHERS=""
 
           while IFS= read -r line; do
-            # Extract short hash and message
             HASH=$(echo "$line" | cut -d' ' -f1)
             MSG=$(echo "$line" | cut -d' ' -f2-)
 
@@ -161,9 +144,21 @@ jobs:
               feat*)  FEATS="${FEATS}- ${MSG} (\`${HASH}\`)"$'\n' ;;
               fix*)   FIXES="${FIXES}- ${MSG} (\`${HASH}\`)"$'\n' ;;
               docs*)  DOCS="${DOCS}- ${MSG} (\`${HASH}\`)"$'\n' ;;
+              chore*) ;;
               *)      OTHERS="${OTHERS}- ${MSG} (\`${HASH}\`)"$'\n' ;;
             esac
           done < <(git log --oneline "$RANGE")
+
+          # Compute SHA-256 checksums
+          cd release
+          SHA_LINUX_X64=$(sha256sum east-x86_64-unknown-linux-gnu 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          SHA_LINUX_ARM64=$(sha256sum east-aarch64-unknown-linux-gnu 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          SHA_MAC_X64=$(sha256sum east-x86_64-apple-darwin 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          SHA_MAC_ARM64=$(sha256sum east-aarch64-apple-darwin 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          SHA_MAC_UNIVERSAL=$(sha256sum east-universal-apple-darwin 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          SHA_WIN_X64=$(sha256sum east-x86_64-pc-windows-msvc.exe 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          SHA_WIN_ARM64=$(sha256sum east-aarch64-pc-windows-msvc.exe 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+          cd ..
 
           # Build release notes
           {
@@ -171,50 +166,58 @@ jobs:
             echo ""
 
             if [ -n "$FEATS" ]; then
-              echo "### ✨ New Features"
+              echo "### New Features"
               echo "$FEATS"
             fi
 
             if [ -n "$FIXES" ]; then
-              echo "### 🐛 Bug Fixes"
+              echo "### Bug Fixes"
               echo "$FIXES"
             fi
 
             if [ -n "$DOCS" ]; then
-              echo "### 📚 Documentation"
+              echo "### Documentation"
               echo "$DOCS"
             fi
 
             if [ -n "$OTHERS" ]; then
-              echo "### 🔧 Other Changes"
+              echo "### Other Changes"
               echo "$OTHERS"
             fi
 
             echo "---"
             echo ""
-            echo "### 📦 Installation"
+            echo "### Installation"
             echo ""
             echo '```sh'
             echo "cargo install east-cli"
             echo '```'
             echo ""
-            echo "Or download a prebuilt binary from the assets below."
+            echo "Or download the binary for your platform:"
             echo ""
-            echo "| Platform | Architecture | Asset |"
-            echo "|----------|-------------|-------|"
-            echo "| Linux | x64 | \`east-x86_64-unknown-linux-gnu.tar.gz\` |"
-            echo "| Linux | ARM64 | \`east-aarch64-unknown-linux-gnu.tar.gz\` |"
-            echo "| macOS | Intel | \`east-x86_64-apple-darwin.tar.gz\` |"
-            echo "| macOS | Apple Silicon | \`east-aarch64-apple-darwin.tar.gz\` |"
-            echo "| macOS | Universal | \`east-universal-apple-darwin.tar.gz\` |"
-            echo "| Windows | x64 | \`east-x86_64-pc-windows-msvc.zip\` |"
-            echo "| Windows | ARM64 | \`east-aarch64-pc-windows-msvc.zip\` |"
+            echo "| Platform | Architecture | Asset | SHA-256 |"
+            echo "|----------|-------------|-------|---------|"
+            echo "| Linux | x64 | \`east-x86_64-unknown-linux-gnu\` | \`${SHA_LINUX_X64:0:16}...\` |"
+            echo "| Linux | ARM64 | \`east-aarch64-unknown-linux-gnu\` | \`${SHA_LINUX_ARM64:0:16}...\` |"
+            echo "| macOS | Intel | \`east-x86_64-apple-darwin\` | \`${SHA_MAC_X64:0:16}...\` |"
+            echo "| macOS | Apple Silicon | \`east-aarch64-apple-darwin\` | \`${SHA_MAC_ARM64:0:16}...\` |"
+            echo "| macOS | Universal | \`east-universal-apple-darwin\` | \`${SHA_MAC_UNIVERSAL:0:16}...\` |"
+            echo "| Windows | x64 | \`east-x86_64-pc-windows-msvc.exe\` | \`${SHA_WIN_X64:0:16}...\` |"
+            echo "| Windows | ARM64 | \`east-aarch64-pc-windows-msvc.exe\` | \`${SHA_WIN_ARM64:0:16}...\` |"
             echo ""
-            echo "**Checksums**: See \`checksums-sha256.txt\` for SHA-256 verification."
+            echo "<details>"
+            echo "<summary>Full SHA-256 checksums</summary>"
+            echo ""
+            echo '```'
+            cat release/checksums-sha256.txt 2>/dev/null || (cd release && sha256sum * 2>/dev/null)
+            echo '```'
+            echo "</details>"
           } > release_notes.md
 
-          # Export for gh-release
-          echo "notes_file=release_notes.md" >> "$GITHUB_OUTPUT"
+          # Also generate checksums file for asset upload
+          cd release
+          sha256sum * > checksums-sha256.txt
+          cd ..
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -237,9 +240,6 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          # Publish leaf crates first (no internal deps), then dependents.
-          # --no-verify skips a full rebuild inside the publish step since
-          # CI already verified the build in the matrix above.
           LEAF_CRATES=(
             east-manifest
             east-vcs
@@ -252,7 +252,7 @@ jobs:
           for crate in "${LEAF_CRATES[@]}"; do
             echo "Publishing ${crate}..."
             cargo publish -p "$crate" --no-verify || echo "Skipped ${crate} (already published or unchanged)"
-            sleep 15  # wait for crates.io index to update
+            sleep 15
           done
 
           echo "Publishing east-command..."
