@@ -45,7 +45,11 @@ enum Commands {
         revision: Option<String>,
     },
     /// Update (fetch/checkout) all projects in the workspace.
-    Update,
+    Update {
+        /// Force checkout even if the working tree has uncommitted changes.
+        #[arg(short, long)]
+        force: bool,
+    },
     /// List all projects in the workspace.
     List,
     /// Show status of all projects in the workspace.
@@ -125,7 +129,7 @@ fn main() -> miette::Result<()> {
 async fn run(cli: Cli) -> miette::Result<()> {
     match cli.command {
         Commands::Init { manifest, revision } => cmd_init(&manifest, revision.as_deref()).await,
-        Commands::Update => cmd_update().await,
+        Commands::Update { force } => cmd_update(force).await,
         Commands::List => cmd_list(),
         Commands::Status => cmd_status().await,
         Commands::Manifest { resolve } => {
@@ -185,17 +189,17 @@ async fn cmd_init(manifest_source: &str, revision: Option<&str>) -> miette::Resu
     info!("initialized east workspace at {}", cwd.display());
 
     // Run update to clone all projects
-    do_update(&cwd).await
+    do_update(&cwd, false).await
 }
 
-async fn cmd_update() -> miette::Result<()> {
+async fn cmd_update(force: bool) -> miette::Result<()> {
     let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
         .into_diagnostic()
         .wrap_err("not inside an east workspace")?;
-    do_update(ws.root()).await
+    do_update(ws.root(), force).await
 }
 
-async fn do_update(workspace_root: &Path) -> miette::Result<()> {
+async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
     let manifest_path = workspace_root.join("east.yml");
     let manifest = Manifest::resolve(&manifest_path)
         .into_diagnostic()
@@ -252,6 +256,14 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
                 pb.set_message(format!("{project_name}: fetching..."));
                 Git::fetch(&project_path).await?;
                 if let Some(rev) = &revision {
+                    let dirty = Git::is_dirty(&project_path).await.unwrap_or(false);
+                    if dirty && !force {
+                        pb.finish_with_message(format!(
+                            "{project_name}: skipped checkout (uncommitted changes, use --force to override)"
+                        ));
+                        overall.inc(1);
+                        return Ok(());
+                    }
                     pb.set_message(format!("{project_name}: checking out {rev}..."));
                     Git::checkout(&project_path, rev).await?;
                 }
