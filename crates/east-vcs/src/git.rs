@@ -114,6 +114,20 @@ impl Git {
         run_git(cmd, repo_path).await
     }
 
+    /// Force-checkout a specific revision, discarding local modifications.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] if the git command fails.
+    pub async fn force_checkout(repo_path: &Path, revision: &str) -> Result<(), VcsError> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C"]);
+        cmd.arg(repo_path);
+        cmd.args(["checkout", "-f", revision]);
+
+        run_git(cmd, repo_path).await
+    }
+
     /// Get the current HEAD SHA (full 40-character hex).
     ///
     /// # Errors
