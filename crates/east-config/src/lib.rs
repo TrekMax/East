@@ -7,11 +7,13 @@
 
 mod config;
 pub mod error;
+pub mod manifest_config;
 pub mod path;
 mod store;
 mod value;
 
 pub use config::{Config, ConfigLayer};
+pub use manifest_config::ManifestConfig;
 pub use store::ConfigStore;
 pub use value::ConfigValue;
 

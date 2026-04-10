@@ -5,7 +5,10 @@ use east_config::manifest_config::ManifestConfig;
 #[test]
 fn manifest_config_from_store_with_both_fields() {
     let mut store = east_config::ConfigStore::new();
-    store.set("manifest.path", east_config::ConfigValue::String("my-app".into()));
+    store.set(
+        "manifest.path",
+        east_config::ConfigValue::String("my-app".into()),
+    );
     store.set(
         "manifest.file",
         east_config::ConfigValue::String("east.yml".into()),
@@ -19,7 +22,10 @@ fn manifest_config_from_store_with_both_fields() {
 #[test]
 fn manifest_config_file_defaults_to_east_yml() {
     let mut store = east_config::ConfigStore::new();
-    store.set("manifest.path", east_config::ConfigValue::String("sdk".into()));
+    store.set(
+        "manifest.path",
+        east_config::ConfigValue::String("sdk".into()),
+    );
 
     let mc = ManifestConfig::from_store(&store).unwrap();
     assert_eq!(mc.path(), "sdk");
@@ -69,7 +75,10 @@ fn manifest_config_rejects_dotdot() {
 #[test]
 fn manifest_config_rejects_empty_path() {
     let mut store = east_config::ConfigStore::new();
-    store.set("manifest.path", east_config::ConfigValue::String(String::new()));
+    store.set(
+        "manifest.path",
+        east_config::ConfigValue::String(String::new()),
+    );
     let err = ManifestConfig::from_store(&store).unwrap_err();
     assert!(
         err.to_string().contains("empty"),

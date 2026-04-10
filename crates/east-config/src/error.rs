@@ -16,4 +16,21 @@ pub enum ConfigError {
     /// TOML serialization error.
     #[error("failed to serialize TOML: {0}")]
     TomlSerialize(#[from] toml::ser::Error),
+
+    /// Workspace config exists but has no `[manifest]` section.
+    /// This indicates a workspace created by an older east version.
+    #[error(
+        "This workspace was created by an older east version and is not compatible. \
+         Please re-initialize: remove `.east/`, then run `east init -l <path>` or `east init -m <url>`."
+    )]
+    ManifestSectionMissing,
+
+    /// `manifest.path` value is invalid.
+    #[error("invalid manifest.path '{path}': {reason}")]
+    InvalidManifestPath {
+        /// The invalid path value.
+        path: String,
+        /// Why it's invalid.
+        reason: String,
+    },
 }
