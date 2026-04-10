@@ -1,14 +1,14 @@
 [package]
 name = "east-command"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Command trait, extension discovery, and template engine for east"
 
 [dependencies]
-east-config = { version = "0.1.1", path = "../east-config" }
-east-manifest = { version = "0.1.1", path = "../east-manifest" }
+east-config = { version = "0.1.2", path = "../east-config" }
+east-manifest = { version = "0.1.2", path = "../east-manifest" }
 miette.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

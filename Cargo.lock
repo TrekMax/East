@@ -229,11 +229,11 @@ checksum = "6184e33543162437515c2e2b48714794e37845ec9851711914eec9d308f6ebe8"
 
 [[package]]
 name = "east-build-util"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "east-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "east-command"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "east-config",
  "east-manifest",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "east-config"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "miette",
  "tempfile",
@@ -276,7 +276,7 @@ dependencies = [
 
 [[package]]
 name = "east-manifest"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "glob-match",
  "miette",
@@ -289,11 +289,11 @@ dependencies = [
 
 [[package]]
 name = "east-runner"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "east-vcs"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "tempfile",
  "thiserror",
@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "east-workspace"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "tempfile",
  "thiserror",
