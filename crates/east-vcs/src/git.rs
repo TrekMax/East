@@ -165,6 +165,10 @@ impl Git {
     /// the full repo, then `sparse-checkout set` to fetch only the
     /// requested file.
     ///
+    /// When `revision` is provided, only that branch or tag is fetched
+    /// (`--single-branch --branch`). Commit SHAs are **not** supported
+    /// — use [`Git::clone`] for SHA-based checkouts.
+    ///
     /// # Errors
     ///
     /// Returns [`VcsError`] if any git command fails.
@@ -174,11 +178,10 @@ impl Git {
         dest: &Path,
         revision: Option<&str>,
     ) -> Result<(), VcsError> {
-        // git clone --depth 1 --filter=blob:none --sparse [--branch <rev>] <url> <dest>
         let mut cmd = Command::new("git");
         cmd.args(["clone", "--depth", "1", "--filter=blob:none", "--sparse"]);
         if let Some(rev) = revision {
-            cmd.args(["--branch", rev]);
+            cmd.args(["--single-branch", "--branch", rev]);
         }
         cmd.arg(url);
         cmd.arg(dest);
