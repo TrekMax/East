@@ -184,3 +184,88 @@ fn init_template_no_initial_commit() {
         .unwrap();
     assert!(!output.status.success(), "should have no commits yet");
 }
+
+// ── Init + Update end-to-end with new topology ──────────────────────
+
+#[test]
+fn init_local_then_update_works() {
+    let dir = TempDir::new().unwrap();
+    let config_home = TempDir::new().unwrap();
+
+    // Create a project repo
+    let project_repo = dir.path().join("project-repo");
+    fs::create_dir_all(&project_repo).unwrap();
+    Command::new("git")
+        .args(["init", "-b", "main"])
+        .arg(&project_repo)
+        .output()
+        .unwrap();
+    for (key, val) in [
+        ("user.email", "test@test.com"),
+        ("user.name", "Test"),
+        ("commit.gpgsign", "false"),
+    ] {
+        Command::new("git")
+            .arg("-C")
+            .arg(&project_repo)
+            .args(["config", key, val])
+            .output()
+            .unwrap();
+    }
+    fs::write(project_repo.join("lib.rs"), "// code\n").unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(&project_repo)
+        .args(["add", "."])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(&project_repo)
+        .args(["commit", "-m", "init"])
+        .output()
+        .unwrap();
+
+    // Create workspace dir with manifest repo inside
+    let ws = dir.path().join("workspace");
+    fs::create_dir_all(&ws).unwrap();
+
+    // Create manifest repo with east.yml referencing project-repo
+    let manifest = format!(
+        r"version: 1
+
+remotes:
+  - name: local
+    url-base: {parent}
+
+defaults:
+  remote: local
+  revision: main
+
+projects:
+  - name: project-repo
+",
+        parent = dir.path().display(),
+    );
+    create_manifest_repo(&ws, "my-app", &manifest);
+
+    // Init with -l
+    east_cmd(config_home.path())
+        .args(["init", "-l", "my-app"])
+        .current_dir(&ws)
+        .assert()
+        .success();
+
+    // Update should resolve manifest from my-app/east.yml
+    east_cmd(config_home.path())
+        .args(["update"])
+        .current_dir(&ws)
+        .assert()
+        .success();
+
+    // Project should be cloned
+    assert!(
+        ws.join("project-repo/lib.rs").exists(),
+        "project-repo should be cloned by update"
+    );
+}

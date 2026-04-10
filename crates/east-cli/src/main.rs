@@ -415,7 +415,11 @@ async fn do_update(
     force: bool,
     force_projects: &[String],
 ) -> miette::Result<()> {
-    let manifest_path = workspace_root.join("east.yml");
+    // Use workspace to resolve manifest path from config
+    let ws = Workspace::discover(workspace_root)
+        .into_diagnostic()
+        .wrap_err("failed to discover workspace")?;
+    let manifest_path = ws.manifest_path();
     let manifest = Manifest::resolve(&manifest_path)
         .into_diagnostic()
         .wrap_err("failed to resolve manifest")?;
