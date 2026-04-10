@@ -268,12 +268,15 @@ async fn do_update(
         let sem = semaphore.clone();
         let overall = overall.clone();
         let force_set = force_set.clone();
-        let pb = mp.insert_after(&overall, ProgressBar::new_spinner());
-        pb.set_style(spinner_style.clone());
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        let mp_handle = mp.clone();
+        let spinner_style_clone = spinner_style.clone();
 
         let handle = tokio::spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore closed");
+            // Add spinner only after acquiring permit to avoid empty lines
+            let pb = mp_handle.add(ProgressBar::new_spinner());
+            pb.set_style(spinner_style_clone);
+            pb.enable_steady_tick(std::time::Duration::from_millis(100));
             pb.set_message(format!("{project_name}: starting..."));
 
             // A directory may exist without being a git repo (e.g. parent
@@ -317,7 +320,8 @@ async fn do_update(
                     let clone_result = Git::clone(url, &project_path, revision.as_deref()).await;
                     match &clone_result {
                         Err(east_vcs::error::VcsError::GitFailed { stderr, .. })
-                            if stderr.contains("already exists")
+                            if (stderr.contains("already exists")
+                                || stderr.contains("File exists"))
                                 && project_path.exists()
                                 && !project_path.join(".git").exists() =>
                         {
