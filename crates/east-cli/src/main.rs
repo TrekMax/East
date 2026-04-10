@@ -207,12 +207,25 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
         return Ok(());
     }
 
+    let total = projects.len() as u64;
     let mp = MultiProgress::new();
-    let style = ProgressStyle::default_spinner()
-        .template("{spinner:.green} {msg}")
+
+    // Top-level progress bar showing overall completion
+    let overall_style = ProgressStyle::default_bar()
+        .template("[{bar:30.cyan/dim}] {pos}/{len} {msg}")
+        .expect("valid template")
+        .progress_chars("##-");
+    let overall = mp.add(ProgressBar::new(total));
+    overall.set_style(overall_style);
+    overall.set_message("updating...");
+
+    // Style for per-task spinners (inserted below the overall bar)
+    let spinner_style = ProgressStyle::default_spinner()
+        .template("  {spinner:.green} {msg}")
         .expect("valid template");
 
     let semaphore = std::sync::Arc::new(Semaphore::new(MAX_CONCURRENT_GIT));
+    let overall = std::sync::Arc::new(overall);
     let mut handles = Vec::new();
 
     for project in &projects {
@@ -221,8 +234,9 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
         let clone_url = manifest.project_clone_url(project).ok();
         let project_name = project.name.clone();
         let sem = semaphore.clone();
-        let pb = mp.add(ProgressBar::new_spinner());
-        pb.set_style(style.clone());
+        let overall = overall.clone();
+        let pb = mp.insert_after(&overall, ProgressBar::new_spinner());
+        pb.set_style(spinner_style.clone());
 
         let handle = tokio::spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore closed");
@@ -267,10 +281,12 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
                 })
             };
 
+            // Update UI: remove spinner on success, keep failure visible
             match &result {
-                Ok(()) => pb.finish_with_message(format!("{project_name}: done")),
+                Ok(()) => pb.finish_and_clear(),
                 Err(e) => pb.finish_with_message(format!("{project_name}: FAILED ({e})")),
             }
+            overall.inc(1);
             result
         });
         handles.push((project.name.clone(), handle));
@@ -284,6 +300,7 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
             Err(e) => errors.push(format!("{name}: task panicked: {e}")),
         }
     }
+    overall.finish_and_clear();
 
     if errors.is_empty() {
         println!("updated {} projects", projects.len());
