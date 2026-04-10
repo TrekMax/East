@@ -125,6 +125,17 @@ pub struct CommandDecl {
     pub declared_in: Option<std::path::PathBuf>,
 }
 
+/// Optional `self:` section in the manifest, providing metadata about
+/// the manifest repository itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(clippy::module_name_repetitions)]
+pub struct ManifestSelf {
+    /// Hint about the expected workspace-relative path for this manifest repo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    // Future reserved fields are silently ignored by serde(default).
+}
+
 /// Top-level east manifest (`east.yml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
@@ -152,6 +163,9 @@ pub struct Manifest {
     /// Extension commands declared in this manifest.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<CommandDecl>,
+    /// Optional `self:` section with manifest repo metadata.
+    #[serde(default, rename = "self", skip_serializing_if = "Option::is_none")]
+    pub manifest_self: Option<ManifestSelf>,
 }
 
 impl Manifest {
