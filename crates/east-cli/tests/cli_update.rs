@@ -229,13 +229,19 @@ fn update_force_specific_project() {
         .assert()
         .success();
 
-    // project-0 should be checked out (clean now)
+    // project-0 should be checked out (clean now — git may use \r\n on Windows)
     let content = fs::read_to_string(workspace.path().join("project-0/lib.rs")).unwrap();
-    assert_eq!(content, "// code for project-0\n");
+    assert!(
+        content.contains("// code for project-0"),
+        "project-0 should be restored after force checkout"
+    );
 
     // project-1 should still have local modifications (checkout was skipped)
     let content = fs::read_to_string(workspace.path().join("project-1/lib.rs")).unwrap();
-    assert_eq!(content, "// modified\n");
+    assert!(
+        content.contains("// modified"),
+        "project-1 should still have local modifications"
+    );
 }
 
 #[test]
@@ -254,11 +260,17 @@ fn update_force_all_projects() {
         .assert()
         .success();
 
-    // Both should be restored
+    // Both should be restored (git may use \r\n on Windows)
     let c0 = fs::read_to_string(workspace.path().join("project-0/lib.rs")).unwrap();
     let c1 = fs::read_to_string(workspace.path().join("project-1/lib.rs")).unwrap();
-    assert_eq!(c0, "// code for project-0\n");
-    assert_eq!(c1, "// code for project-1\n");
+    assert!(
+        c0.contains("// code for project-0"),
+        "project-0 should be restored"
+    );
+    assert!(
+        c1.contains("// code for project-1"),
+        "project-1 should be restored"
+    );
 }
 
 #[test]
