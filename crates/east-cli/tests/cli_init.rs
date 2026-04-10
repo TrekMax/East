@@ -277,14 +277,16 @@ fn init_remote_clones_manifest_repo() {
     let fixture = TempDir::new().unwrap();
     let config_home = TempDir::new().unwrap();
 
-    // Create a bare-ish manifest repo to clone from
+    // Create a manifest repo to clone from
     create_manifest_repo(fixture.path(), "sdk-manifest", "version: 1\n");
 
     let workspace = TempDir::new().unwrap();
-    let manifest_url = format!("file://{}", fixture.path().join("sdk-manifest").display());
+
+    // Use the local path directly (east init -m supports local paths via git clone)
+    let manifest_path = fixture.path().join("sdk-manifest");
 
     east_cmd(config_home.path())
-        .args(["init", "-m", &manifest_url])
+        .args(["init", "-m", manifest_path.to_str().unwrap()])
         .current_dir(workspace.path())
         .assert()
         .success();
