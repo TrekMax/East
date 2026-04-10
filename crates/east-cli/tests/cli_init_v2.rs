@@ -73,7 +73,10 @@ fn init_local_creates_workspace() {
     assert!(dir.path().join(".east").is_dir());
     // config.toml should have [manifest] section
     let config = fs::read_to_string(dir.path().join(".east/config.toml")).unwrap();
-    assert!(config.contains("manifest"), "config should have manifest section");
+    assert!(
+        config.contains("manifest"),
+        "config should have manifest section"
+    );
     assert!(config.contains("my-app"), "config should reference my-app");
 }
 
