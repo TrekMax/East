@@ -284,10 +284,12 @@ async fn cmd_init_remote(
 
     check_not_already_initialized(&workspace_root, force)?;
 
-    // Derive repo name from URL (handle trailing slashes, .git suffix, SCP-style URLs)
-    let url_trimmed = url.trim_end_matches('/');
+    // Derive repo name from URL or local path
+    // Handle trailing slashes/backslashes, .git suffix, SCP-style URLs, Windows paths
+    let url_trimmed = url.trim_end_matches(['/', '\\']);
     let basename = url_trimmed
         .rsplit_once('/')
+        .or_else(|| url_trimmed.rsplit_once('\\'))
         .or_else(|| url_trimmed.rsplit_once(':'))
         .map_or(url_trimmed, |(_, name)| name);
     let repo_name = basename.strip_suffix(".git").unwrap_or(basename);
