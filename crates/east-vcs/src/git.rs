@@ -1,6 +1,7 @@
 #![allow(clippy::doc_markdown)]
 
 use std::path::Path;
+use std::process::Stdio;
 
 use tokio::process::Command;
 
@@ -27,7 +28,7 @@ impl Git {
             revision.is_some_and(|r| r.len() >= 40 && r.chars().all(|c| c.is_ascii_hexdigit()));
 
         let mut cmd = Command::new("git");
-        cmd.arg("clone");
+        cmd.args(["clone", "--progress"]);
         if let Some(rev) = revision {
             if !is_sha {
                 cmd.args(["--single-branch", "-b", rev]);
@@ -36,7 +37,7 @@ impl Git {
         cmd.arg(url);
         cmd.arg(dest);
 
-        run_git(cmd, dest).await?;
+        run_git_progress(cmd, dest).await?;
 
         // For SHA revisions, checkout the specific commit after cloning
         if is_sha {
@@ -95,9 +96,9 @@ impl Git {
         let mut cmd = Command::new("git");
         cmd.args(["-C"]);
         cmd.arg(repo_path);
-        cmd.args(["fetch", "origin"]);
+        cmd.args(["fetch", "--progress", "origin"]);
 
-        run_git(cmd, repo_path).await
+        run_git_progress(cmd, repo_path).await
     }
 
     /// Checkout a specific revision in the repository at `repo_path`.
@@ -193,13 +194,20 @@ impl Git {
         revision: Option<&str>,
     ) -> Result<(), VcsError> {
         let mut cmd = Command::new("git");
-        cmd.args(["clone", "--depth", "1", "--filter=blob:none", "--sparse"]);
+        cmd.args([
+            "clone",
+            "--progress",
+            "--depth",
+            "1",
+            "--filter=blob:none",
+            "--sparse",
+        ]);
         if let Some(rev) = revision {
             cmd.args(["--single-branch", "--branch", rev]);
         }
         cmd.arg(url);
         cmd.arg(dest);
-        run_git(cmd, dest).await?;
+        run_git_progress(cmd, dest).await?;
 
         // git -C <dest> sparse-checkout set --no-cone <file>
         // --no-cone is required to match individual files (cone mode only matches directories)
@@ -237,6 +245,27 @@ async fn run_git(mut cmd: Command, context_path: &Path) -> Result<(), VcsError> 
         Err(VcsError::GitFailed {
             path: context_path.to_path_buf(),
             stderr,
+        })
+    }
+}
+
+/// Run a git command with stderr inherited (progress visible to user).
+///
+/// Used for long-running operations like clone and fetch where the user
+/// needs to see git's transfer progress.
+async fn run_git_progress(mut cmd: Command, context_path: &Path) -> Result<(), VcsError> {
+    let status = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .status()
+        .await?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(VcsError::GitFailed {
+            path: context_path.to_path_buf(),
+            stderr: format!("git exited with {}", status.code().unwrap_or(-1)),
         })
     }
 }
