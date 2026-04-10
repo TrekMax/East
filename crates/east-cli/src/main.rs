@@ -39,9 +39,9 @@ enum Commands {
     /// Initialize a new east workspace.
     ///
     /// Three modes:
-    ///   east init -l <path>      Use an existing local directory as manifest repo
-    ///   east init -m <url>       Clone a remote repository as manifest repo
-    ///   east init [<dir>]        Create a new template manifest repo (default: "manifest")
+    /// - `east init -l PATH` — use an existing local directory as manifest repo
+    /// - `east init -m URL` — clone a remote repository as manifest repo
+    /// - `east init [DIR]` — create a new template manifest repo (default: "manifest")
     Init {
         /// Use an existing local directory as manifest repo.
         #[arg(short, long, conflicts_with = "manifest_url")]
@@ -183,7 +183,7 @@ async fn run(cli: Cli) -> miette::Result<()> {
     }
 }
 
-/// Write the [manifest] section to .east/config.toml.
+/// Write the `\[manifest\]` section to `.east/config.toml`.
 fn write_manifest_config(
     workspace_root: &Path,
     manifest_path: &str,
