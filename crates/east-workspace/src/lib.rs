@@ -86,4 +86,79 @@ mod tests {
             dir.path().canonicalize().unwrap().join("east.yml")
         );
     }
+
+    // ── Phase 2.6: new workspace loading with manifest config ───────
+
+    #[test]
+    fn workspace_manifest_repo_path() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join(".east")).unwrap();
+
+        // Write config with [manifest] section
+        let config_content = "[manifest]\npath = \"my-app\"\nfile = \"east.yml\"\n";
+        fs::write(dir.path().join(".east/config.toml"), config_content).unwrap();
+
+        // Create the manifest repo dir and file
+        fs::create_dir_all(dir.path().join("my-app")).unwrap();
+        fs::write(dir.path().join("my-app/east.yml"), "version: 1\n").unwrap();
+
+        let ws = Workspace::discover(dir.path()).unwrap();
+        assert_eq!(
+            ws.manifest_repo_path(),
+            dir.path().canonicalize().unwrap().join("my-app")
+        );
+    }
+
+    #[test]
+    fn workspace_manifest_file_path() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join(".east")).unwrap();
+
+        let config_content = "[manifest]\npath = \"sdk\"\nfile = \"east.yml\"\n";
+        fs::write(dir.path().join(".east/config.toml"), config_content).unwrap();
+
+        fs::create_dir_all(dir.path().join("sdk")).unwrap();
+        fs::write(dir.path().join("sdk/east.yml"), "version: 1\n").unwrap();
+
+        let ws = Workspace::discover(dir.path()).unwrap();
+        assert_eq!(
+            ws.manifest_file_path(),
+            dir.path().canonicalize().unwrap().join("sdk/east.yml")
+        );
+    }
+
+    #[test]
+    fn workspace_without_manifest_config_falls_back() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join(".east")).unwrap();
+        // Config exists but no [manifest] section — legacy workspace
+        fs::write(
+            dir.path().join(".east/config.toml"),
+            "[user]\nname = \"test\"\n",
+        )
+        .unwrap();
+
+        let ws = Workspace::discover(dir.path()).unwrap();
+        // manifest_repo_path falls back to workspace root when no config
+        assert_eq!(ws.manifest_repo_path(), ws.root());
+        // Legacy manifest_path() returns root/east.yml
+        assert_eq!(ws.manifest_path(), ws.root().join("east.yml"));
+    }
+
+    #[test]
+    fn workspace_discover_from_inside_manifest_repo() {
+        // Discovery from <workspace>/manifest-repo/src/deep/ must find .east/ at <workspace>/
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join(".east")).unwrap();
+        fs::create_dir_all(dir.path().join("my-app/.git")).unwrap();
+        fs::create_dir_all(dir.path().join("my-app/src/deep")).unwrap();
+
+        let config_content = "[manifest]\npath = \"my-app\"\nfile = \"east.yml\"\n";
+        fs::write(dir.path().join(".east/config.toml"), config_content).unwrap();
+        fs::write(dir.path().join("my-app/east.yml"), "version: 1\n").unwrap();
+
+        // Discover from deep inside manifest repo
+        let ws = Workspace::discover(&dir.path().join("my-app/src/deep")).unwrap();
+        assert_eq!(ws.root(), dir.path().canonicalize().unwrap());
+    }
 }

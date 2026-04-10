@@ -15,21 +15,25 @@ A fast, manifest-driven development toolkit written in Rust.
 
 ## Status
 
-**Phase 2** — complete.
+**Phase 2.6** — complete.
 
 - **Phase 1:** Multi-repo management — `east init`, `east update`, `east list`, `east status`, `east manifest --resolve`
-- **Phase 2:** Configuration & extension commands — `east config get/set/unset/list`, manifest-declared commands (`exec`/`script`/`executable`), PATH-based `east-<name>` discovery, template engine
+- **Phase 2:** Configuration & extension commands — `east config`, manifest-declared commands, PATH-based discovery, template engine
+- **Phase 2.6:** Topology correction — manifest lives in a real git repo inside the workspace
 
 ## Quick Start
 
 ```bash
-# Initialize a workspace from a manifest repo
-east init https://github.com/your-org/manifest
+# Create a new workspace with a template manifest
+east init
 
-# Initialize from a specific branch
-east init https://github.com/your-org/manifest -r develop
+# Or use an existing local app as manifest repo
+east init -l ./my-app
 
-# Update all projects
+# Or clone a manifest repo from remote
+east init -m https://github.com/your-org/sdk-manifest
+
+# Update all projects declared in the manifest
 east update
 
 # Run a manifest-declared command

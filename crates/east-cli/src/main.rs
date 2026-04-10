@@ -36,13 +36,31 @@ struct Cli {
 #[derive(Subcommand)]
 #[command(allow_external_subcommands = true)]
 enum Commands {
-    /// Initialize a new east workspace from a manifest.
+    /// Initialize a new east workspace.
+    ///
+    /// Three modes:
+    /// - `east init -l PATH` — use an existing local directory as manifest repo
+    /// - `east init -m URL` — clone a remote repository as manifest repo
+    /// - `east init [DIR]` — create a new template manifest repo (default: "manifest")
     Init {
-        /// URL or local path to the manifest repository.
-        manifest: String,
-        /// Branch or tag to use when fetching from a remote repository.
-        #[arg(short, long)]
-        revision: Option<String>,
+        /// Use an existing local directory as manifest repo.
+        #[arg(short, long, conflicts_with = "manifest_url")]
+        local: Option<String>,
+        /// Clone a remote URL as manifest repo.
+        #[arg(short, long, conflicts_with = "local")]
+        manifest_url: Option<String>,
+        /// Branch or tag for -m mode.
+        #[arg(long = "mr", requires = "manifest_url")]
+        manifest_rev: Option<String>,
+        /// Manifest file name (default: east.yml).
+        #[arg(long = "mf")]
+        manifest_file: Option<String>,
+        /// Force init even if .east/ already exists.
+        #[arg(long)]
+        force: bool,
+        /// Directory name for template mode or workspace dir for -m mode.
+        #[arg(conflicts_with = "local")]
+        dir: Option<String>,
     },
     /// Update (fetch/checkout) all projects in the workspace.
     Update {
@@ -133,7 +151,24 @@ fn main() -> miette::Result<()> {
 
 async fn run(cli: Cli) -> miette::Result<()> {
     match cli.command {
-        Commands::Init { manifest, revision } => cmd_init(&manifest, revision.as_deref()).await,
+        Commands::Init {
+            local,
+            manifest_url,
+            manifest_rev,
+            manifest_file,
+            force,
+            dir,
+        } => {
+            let mf = manifest_file.as_deref().unwrap_or("east.yml");
+            if let Some(local_path) = &local {
+                cmd_init_local(local_path, mf, force)
+            } else if let Some(url) = &manifest_url {
+                cmd_init_remote(url, manifest_rev.as_deref(), mf, dir.as_deref(), force).await
+            } else {
+                let dir_name = dir.as_deref().unwrap_or("manifest");
+                cmd_init_template(dir_name, mf, force)
+            }
+        }
         Commands::Update { force, projects } => cmd_update(force, &projects).await,
         Commands::List => cmd_list(),
         Commands::Status => cmd_status().await,
@@ -149,52 +184,228 @@ async fn run(cli: Cli) -> miette::Result<()> {
     }
 }
 
-async fn cmd_init(manifest_source: &str, revision: Option<&str>) -> miette::Result<()> {
+/// Write the `\[manifest\]` section to `.east/config.toml`.
+fn write_manifest_config(
+    workspace_root: &Path,
+    manifest_path: &str,
+    manifest_file: &str,
+) -> miette::Result<()> {
+    let config_path = workspace_root.join(".east/config.toml");
+    let mut store = east_config::ConfigStore::load_from_file(&config_path)
+        .into_diagnostic()
+        .wrap_err("failed to load config")?;
+    let mc = east_config::ManifestConfig::new(manifest_path, manifest_file);
+    mc.write_to_store(&mut store);
+    store
+        .save_to_file(&config_path)
+        .into_diagnostic()
+        .wrap_err("failed to save config")?;
+    Ok(())
+}
+
+/// Check that .east/ doesn't already exist (unless --force).
+fn check_not_already_initialized(workspace_root: &Path, force: bool) -> miette::Result<()> {
+    if workspace_root.join(".east").exists() && !force {
+        bail!(
+            "workspace already initialized at {}. Use --force to reinitialize.",
+            workspace_root.display()
+        );
+    }
+    Ok(())
+}
+
+/// Mode L: use an existing local directory as manifest repo.
+fn cmd_init_local(local_path: &str, manifest_file: &str, force: bool) -> miette::Result<()> {
     let cwd = std::env::current_dir().into_diagnostic()?;
-    let manifest_path = PathBuf::from(manifest_source);
+    let repo_path = cwd.join(local_path);
 
-    if manifest_path.is_dir() {
-        // Local directory: it's a git repo containing east.yml
-        let source_manifest = manifest_path.join("east.yml");
-        if !source_manifest.exists() {
-            bail!("no east.yml found in {}", manifest_path.display());
-        }
-        std::fs::copy(&source_manifest, cwd.join("east.yml"))
-            .into_diagnostic()
-            .wrap_err("failed to copy east.yml")?;
-    } else if manifest_path.is_file() {
-        // Local file: copy it directly
-        std::fs::copy(&manifest_path, cwd.join("east.yml"))
-            .into_diagnostic()
-            .wrap_err("failed to copy manifest file")?;
-    } else {
-        // Treat as a git URL: sparse-checkout only east.yml
-        let temp_dir = tempfile::tempdir()
-            .into_diagnostic()
-            .wrap_err("failed to create temp dir")?;
-        let clone_dest = temp_dir.path().join("manifest");
-        Git::fetch_file(manifest_source, "east.yml", &clone_dest, revision)
-            .await
-            .into_diagnostic()
-            .wrap_err("failed to fetch east.yml from manifest repository")?;
-
-        let source_manifest = clone_dest.join("east.yml");
-        if !source_manifest.exists() {
-            bail!("no east.yml found in manifest repository");
-        }
-        std::fs::copy(&source_manifest, cwd.join("east.yml"))
-            .into_diagnostic()
-            .wrap_err("failed to copy east.yml from cloned repo")?;
+    if !repo_path.is_dir() {
+        bail!("directory not found: {}", repo_path.display());
     }
 
-    // Initialize workspace
+    if !repo_path.join(manifest_file).exists() {
+        bail!(
+            "manifest file '{}' not found in {}",
+            manifest_file,
+            repo_path.display()
+        );
+    }
+
+    // Workspace root is the parent of the local path
+    let workspace_root = repo_path
+        .parent()
+        .ok_or_else(|| miette::miette!("cannot determine workspace root from {local_path}"))?;
+
+    check_not_already_initialized(workspace_root, force)?;
+
+    // Create .east/
+    Workspace::init(workspace_root)
+        .into_diagnostic()
+        .wrap_err("failed to initialize workspace")?;
+
+    // Compute the relative manifest path (basename of the local path)
+    let manifest_dir_name = repo_path
+        .file_name()
+        .ok_or_else(|| miette::miette!("invalid path: {local_path}"))?
+        .to_string_lossy();
+
+    write_manifest_config(workspace_root, &manifest_dir_name, manifest_file)?;
+
+    // Warn if not a git repo
+    if !repo_path.join(".git").exists() {
+        tracing::warn!(
+            "{} is not a git repository. Consider running `git init` in it.",
+            repo_path.display()
+        );
+    }
+
+    info!("initialized east workspace at {}", workspace_root.display());
+    Ok(())
+}
+
+/// Mode M: clone a remote URL as manifest repo.
+async fn cmd_init_remote(
+    url: &str,
+    revision: Option<&str>,
+    manifest_file: &str,
+    workspace_dir: Option<&str>,
+    force: bool,
+) -> miette::Result<()> {
+    let cwd = std::env::current_dir().into_diagnostic()?;
+    let workspace_root = if let Some(dir) = workspace_dir {
+        let p = cwd.join(dir);
+        std::fs::create_dir_all(&p)
+            .into_diagnostic()
+            .wrap_err("failed to create workspace directory")?;
+        p
+    } else {
+        cwd
+    };
+
+    check_not_already_initialized(&workspace_root, force)?;
+
+    // Derive repo name from URL (handle trailing slashes, .git suffix, SCP-style URLs)
+    let url_trimmed = url.trim_end_matches('/');
+    let basename = url_trimmed
+        .rsplit_once('/')
+        .or_else(|| url_trimmed.rsplit_once(':'))
+        .map_or(url_trimmed, |(_, name)| name);
+    let repo_name = basename.strip_suffix(".git").unwrap_or(basename);
+    let repo_name = if repo_name.is_empty() {
+        "manifest"
+    } else {
+        repo_name
+    };
+
+    let clone_dest = workspace_root.join(repo_name);
+
+    Git::clone(url, &clone_dest, revision)
+        .await
+        .into_diagnostic()
+        .wrap_err("failed to clone manifest repository")?;
+
+    // Verify manifest file exists
+    if !clone_dest.join(manifest_file).exists() {
+        bail!(
+            "manifest file '{}' not found in cloned repository at {}",
+            manifest_file,
+            clone_dest.display()
+        );
+    }
+
+    // Create .east/
+    Workspace::init(&workspace_root)
+        .into_diagnostic()
+        .wrap_err("failed to initialize workspace")?;
+
+    write_manifest_config(&workspace_root, repo_name, manifest_file)?;
+
+    info!(
+        "initialized east workspace at {} with manifest repo {}",
+        workspace_root.display(),
+        repo_name
+    );
+    Ok(())
+}
+
+/// Mode T: create a new template manifest repo.
+fn cmd_init_template(dir_name: &str, manifest_file: &str, force: bool) -> miette::Result<()> {
+    let cwd = std::env::current_dir().into_diagnostic()?;
+    let repo_path = cwd.join(dir_name);
+
+    check_not_already_initialized(&cwd, force)?;
+
+    if repo_path.exists() && !force {
+        bail!(
+            "directory '{}' already exists. Use a different name or --force.",
+            dir_name
+        );
+    }
+
+    // Create template directory
+    std::fs::create_dir_all(&repo_path)
+        .into_diagnostic()
+        .wrap_err("failed to create template directory")?;
+
+    // Write template east.yml
+    let template = format!(
+        r"version: 1
+
+# self:
+#   path: {dir_name}
+
+remotes: []
+  # - name: origin
+  #   url-base: https://github.com/your-org
+
+defaults: {{}}
+  # remote: origin
+  # revision: main
+
+projects: []
+  # - name: my-lib
+  #   path: libs/my-lib
+"
+    );
+    std::fs::write(repo_path.join(manifest_file), template)
+        .into_diagnostic()
+        .wrap_err("failed to write template manifest")?;
+
+    // Write .gitignore
+    std::fs::write(
+        repo_path.join(".gitignore"),
+        "*.swp\n*.swo\n*~\n.DS_Store\nThumbs.db\n",
+    )
+    .into_diagnostic()
+    .wrap_err("failed to write .gitignore")?;
+
+    // git init (don't commit — leave for user)
+    let output = std::process::Command::new("git")
+        .arg("init")
+        .arg(&repo_path)
+        .output()
+        .into_diagnostic()
+        .wrap_err("failed to run git init")?;
+    if !output.status.success() {
+        bail!(
+            "git init failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // Create .east/
     Workspace::init(&cwd)
         .into_diagnostic()
         .wrap_err("failed to initialize workspace")?;
-    info!("initialized east workspace at {}", cwd.display());
 
-    // Run update to clone all projects
-    do_update(&cwd, false, &[]).await
+    write_manifest_config(&cwd, dir_name, manifest_file)?;
+
+    info!(
+        "initialized east workspace at {} with template manifest in {}",
+        cwd.display(),
+        dir_name
+    );
+    Ok(())
 }
 
 async fn cmd_update(force: bool, force_projects: &[String]) -> miette::Result<()> {
@@ -210,7 +421,11 @@ async fn do_update(
     force: bool,
     force_projects: &[String],
 ) -> miette::Result<()> {
-    let manifest_path = workspace_root.join("east.yml");
+    // Use workspace to resolve manifest path from config
+    let ws = Workspace::discover(workspace_root)
+        .into_diagnostic()
+        .wrap_err("failed to discover workspace")?;
+    let manifest_path = ws.manifest_path();
     let manifest = Manifest::resolve(&manifest_path)
         .into_diagnostic()
         .wrap_err("failed to resolve manifest")?;
@@ -260,7 +475,7 @@ async fn do_update(
     let mut handles = Vec::new();
 
     for project in &projects {
-        let project_path = workspace_root.join(project.effective_path());
+        let project_path = strip_unc_prefix(&workspace_root.join(project.effective_path()));
         let revision = manifest.project_revision(project).map(String::from);
         let clone_url = manifest.project_clone_url(project).ok();
         let project_name = project.name.clone();
@@ -476,7 +691,7 @@ fn cmd_list() -> miette::Result<()> {
         "NAME", "PATH", "REVISION", "CLONED"
     );
     for project in &projects {
-        let project_path = ws.root().join(project.effective_path());
+        let project_path = strip_unc_prefix(&ws.root().join(project.effective_path()));
         let revision = manifest.project_revision(project).unwrap_or("-");
         let cloned = if project_path.exists() { "yes" } else { "no" };
         println!(
@@ -506,7 +721,7 @@ async fn cmd_status() -> miette::Result<()> {
         "NAME", "STATUS", "HEAD", "BRANCH"
     );
     for project in &projects {
-        let project_path = ws.root().join(project.effective_path());
+        let project_path = strip_unc_prefix(&ws.root().join(project.effective_path()));
         if !project_path.exists() {
             println!(
                 "{:<20} {:<12} {:<42} {:<10}",
