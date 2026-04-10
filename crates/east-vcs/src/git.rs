@@ -168,10 +168,18 @@ impl Git {
     /// # Errors
     ///
     /// Returns [`VcsError`] if any git command fails.
-    pub async fn fetch_file(url: &str, file: &str, dest: &Path) -> Result<(), VcsError> {
-        // git clone --depth 1 --filter=blob:none --sparse <url> <dest>
+    pub async fn fetch_file(
+        url: &str,
+        file: &str,
+        dest: &Path,
+        revision: Option<&str>,
+    ) -> Result<(), VcsError> {
+        // git clone --depth 1 --filter=blob:none --sparse [--branch <rev>] <url> <dest>
         let mut cmd = Command::new("git");
         cmd.args(["clone", "--depth", "1", "--filter=blob:none", "--sparse"]);
+        if let Some(rev) = revision {
+            cmd.args(["--branch", rev]);
+        }
         cmd.arg(url);
         cmd.arg(dest);
         run_git(cmd, dest).await?;
