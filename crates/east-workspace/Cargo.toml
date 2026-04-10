@@ -1,13 +1,13 @@
 [package]
 name = "east-workspace"
-version = "0.2.0"
+version = "0.2.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = ".east/ directory, workspace discovery, and state for east"
 
 [dependencies]
-east-config = { version = "0.2.0", path = "../east-config" }
+east-config = { version = "0.2.1", path = "../east-config" }
 thiserror.workspace = true
 
 [dev-dependencies]

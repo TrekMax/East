@@ -1,6 +1,6 @@
 [package]
 name = "east-cli"
-version = "0.2.0"
+version = "0.2.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -12,11 +12,11 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-east-command = { version = "0.2.0", path = "../east-command" }
-east-config = { version = "0.2.0", path = "../east-config" }
-east-manifest = { version = "0.2.0", path = "../east-manifest" }
-east-vcs = { version = "0.2.0", path = "../east-vcs" }
-east-workspace = { version = "0.2.0", path = "../east-workspace" }
+east-command = { version = "0.2.1", path = "../east-command" }
+east-config = { version = "0.2.1", path = "../east-config" }
+east-manifest = { version = "0.2.1", path = "../east-manifest" }
+east-vcs = { version = "0.2.1", path = "../east-vcs" }
+east-workspace = { version = "0.2.1", path = "../east-workspace" }
 indicatif.workspace = true
 miette.workspace = true
 serde_yaml.workspace = true
