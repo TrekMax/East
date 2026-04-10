@@ -41,10 +41,12 @@ impl Workspace {
             if current.join(EAST_DIR).is_dir() {
                 let root = current;
                 let (repo_path, file_path) = Self::load_manifest_paths(&root);
+                // If config didn't provide paths, fall back to legacy layout
+                let file_path = file_path.unwrap_or_else(|| root.join(LEGACY_MANIFEST_FILE));
                 return Ok(Self {
                     root,
                     manifest_repo_path: repo_path,
-                    manifest_file_path: file_path,
+                    manifest_file_path: Some(file_path),
                 });
             }
             if !current.pop() {
@@ -102,12 +104,7 @@ impl Workspace {
     /// Falls back to `<root>/east.yml` for legacy compatibility.
     #[must_use]
     pub fn manifest_file_path(&self) -> &Path {
-        self.manifest_file_path.as_deref().unwrap_or_else(|| {
-            // This is a static fallback — we can't return a reference to a
-            // temporary, so use the legacy path which is derived from root.
-            // In practice this path is only used when config hasn't been loaded.
-            &self.root
-        })
+        self.manifest_file_path.as_deref().unwrap_or(&self.root)
     }
 
     /// Legacy compatibility: path to `<root>/east.yml`.

@@ -269,3 +269,34 @@ projects:
         "project-repo should be cloned by update"
     );
 }
+
+// ── Mode M: clone from remote ───────────────────────────────────────
+
+#[test]
+fn init_remote_clones_manifest_repo() {
+    let fixture = TempDir::new().unwrap();
+    let config_home = TempDir::new().unwrap();
+
+    // Create a bare-ish manifest repo to clone from
+    create_manifest_repo(fixture.path(), "sdk-manifest", "version: 1\n");
+
+    let workspace = TempDir::new().unwrap();
+    let manifest_url = format!("file://{}", fixture.path().join("sdk-manifest").display());
+
+    east_cmd(config_home.path())
+        .args(["init", "-m", &manifest_url])
+        .current_dir(workspace.path())
+        .assert()
+        .success();
+
+    // .east/ should exist
+    assert!(workspace.path().join(".east").is_dir());
+    // Manifest repo should be cloned as "sdk-manifest"
+    assert!(workspace.path().join("sdk-manifest/east.yml").exists());
+    // Config should reference it
+    let config = fs::read_to_string(workspace.path().join(".east/config.toml")).unwrap();
+    assert!(
+        config.contains("sdk-manifest"),
+        "config should reference sdk-manifest"
+    );
+}

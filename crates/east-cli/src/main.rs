@@ -59,6 +59,7 @@ enum Commands {
         #[arg(long)]
         force: bool,
         /// Directory name for template mode or workspace dir for -m mode.
+        #[arg(conflicts_with = "local")]
         dir: Option<String>,
     },
     /// Update (fetch/checkout) all projects in the workspace.
@@ -283,13 +284,18 @@ async fn cmd_init_remote(
 
     check_not_already_initialized(&workspace_root, force)?;
 
-    // Derive repo name from URL
-    let repo_name = url
-        .rsplit('/')
-        .next()
-        .unwrap_or("manifest")
-        .strip_suffix(".git")
-        .unwrap_or_else(|| url.rsplit('/').next().unwrap_or("manifest"));
+    // Derive repo name from URL (handle trailing slashes, .git suffix, SCP-style URLs)
+    let url_trimmed = url.trim_end_matches('/');
+    let basename = url_trimmed
+        .rsplit_once('/')
+        .or_else(|| url_trimmed.rsplit_once(':'))
+        .map_or(url_trimmed, |(_, name)| name);
+    let repo_name = basename.strip_suffix(".git").unwrap_or(basename);
+    let repo_name = if repo_name.is_empty() {
+        "manifest"
+    } else {
+        repo_name
+    };
 
     let clone_dest = workspace_root.join(repo_name);
 
@@ -329,7 +335,7 @@ fn cmd_init_template(dir_name: &str, manifest_file: &str, force: bool) -> miette
 
     check_not_already_initialized(&cwd, force)?;
 
-    if repo_path.exists() {
+    if repo_path.exists() && !force {
         bail!(
             "directory '{}' already exists. Use a different name or --force.",
             dir_name

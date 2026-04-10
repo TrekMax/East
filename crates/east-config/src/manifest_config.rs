@@ -48,6 +48,9 @@ impl ManifestConfig {
             .unwrap_or("east.yml")
             .to_string();
 
+        // Validate file: must be a plain filename (no path separators, no .., not absolute)
+        validate_manifest_file(&file)?;
+
         Ok(Self { path, file })
     }
 
@@ -95,6 +98,33 @@ fn validate_manifest_path(path: &str) -> Result<(), ConfigError> {
         return Err(ConfigError::InvalidManifestPath {
             path: path.to_string(),
             reason: "path must not contain '..' components".to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+/// Validate that a manifest file name is a plain filename (no directory components).
+fn validate_manifest_file(file: &str) -> Result<(), ConfigError> {
+    if file.is_empty() {
+        return Err(ConfigError::InvalidManifestPath {
+            path: file.to_string(),
+            reason: "manifest file name must not be empty".to_string(),
+        });
+    }
+
+    if file.contains('/') || file.contains('\\') || file.contains("..") {
+        return Err(ConfigError::InvalidManifestPath {
+            path: file.to_string(),
+            reason: "manifest file must be a plain filename without path separators".to_string(),
+        });
+    }
+
+    let p = Path::new(file);
+    if p.is_absolute() || file.starts_with('/') || file.starts_with('\\') {
+        return Err(ConfigError::InvalidManifestPath {
+            path: file.to_string(),
+            reason: "manifest file must not be an absolute path".to_string(),
         });
     }
 
