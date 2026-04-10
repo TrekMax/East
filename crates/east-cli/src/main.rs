@@ -47,8 +47,13 @@ enum Commands {
     /// Update (fetch/checkout) all projects in the workspace.
     Update {
         /// Force checkout even if the working tree has uncommitted changes.
+        /// When project names are given, only those projects are force-checked-out.
+        /// Without names, force applies to all projects.
         #[arg(short, long)]
         force: bool,
+        /// Project names to force checkout (only used with --force).
+        #[arg(requires = "force")]
+        projects: Vec<String>,
     },
     /// List all projects in the workspace.
     List,
@@ -129,7 +134,7 @@ fn main() -> miette::Result<()> {
 async fn run(cli: Cli) -> miette::Result<()> {
     match cli.command {
         Commands::Init { manifest, revision } => cmd_init(&manifest, revision.as_deref()).await,
-        Commands::Update { force } => cmd_update(force).await,
+        Commands::Update { force, projects } => cmd_update(force, &projects).await,
         Commands::List => cmd_list(),
         Commands::Status => cmd_status().await,
         Commands::Manifest { resolve } => {
@@ -189,18 +194,22 @@ async fn cmd_init(manifest_source: &str, revision: Option<&str>) -> miette::Resu
     info!("initialized east workspace at {}", cwd.display());
 
     // Run update to clone all projects
-    do_update(&cwd, false).await
+    do_update(&cwd, false, &[]).await
 }
 
-async fn cmd_update(force: bool) -> miette::Result<()> {
+async fn cmd_update(force: bool, force_projects: &[String]) -> miette::Result<()> {
     let ws = Workspace::discover(&std::env::current_dir().into_diagnostic()?)
         .into_diagnostic()
         .wrap_err("not inside an east workspace")?;
-    do_update(ws.root(), force).await
+    do_update(ws.root(), force, force_projects).await
 }
 
 #[allow(clippy::too_many_lines)]
-async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
+async fn do_update(
+    workspace_root: &Path,
+    force: bool,
+    force_projects: &[String],
+) -> miette::Result<()> {
     let manifest_path = workspace_root.join("east.yml");
     let manifest = Manifest::resolve(&manifest_path)
         .into_diagnostic()
@@ -210,6 +219,21 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
     if projects.is_empty() {
         println!("no projects to update");
         return Ok(());
+    }
+
+    // Validate that --force project names actually exist in the manifest
+    if !force_projects.is_empty() {
+        let known: std::collections::HashSet<&str> =
+            projects.iter().map(|p| p.name.as_str()).collect();
+        let mut unknown = Vec::new();
+        for name in force_projects {
+            if !known.contains(name.as_str()) {
+                unknown.push(name.as_str());
+            }
+        }
+        if !unknown.is_empty() {
+            bail!("unknown project(s) for --force: {}", unknown.join(", "));
+        }
     }
 
     let total = projects.len() as u64;
@@ -231,6 +255,8 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
 
     let semaphore = std::sync::Arc::new(Semaphore::new(MAX_CONCURRENT_GIT));
     let overall = std::sync::Arc::new(overall);
+    let force_set: std::sync::Arc<std::collections::HashSet<String>> =
+        std::sync::Arc::new(force_projects.iter().cloned().collect());
     let mut handles = Vec::new();
 
     for project in &projects {
@@ -241,6 +267,7 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
         let project_rel_path = project.effective_path().to_string();
         let sem = semaphore.clone();
         let overall = overall.clone();
+        let force_set = force_set.clone();
         let pb = mp.insert_after(&overall, ProgressBar::new_spinner());
         pb.set_style(spinner_style.clone());
 
@@ -259,7 +286,9 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
                 Git::fetch(&project_path).await?;
                 if let Some(rev) = &revision {
                     let dirty = Git::is_dirty(&project_path).await.unwrap_or(false);
-                    if dirty && !force {
+                    let force_this =
+                        force && (force_set.is_empty() || force_set.contains(&project_name));
+                    if dirty && !force_this {
                         pb.finish_with_message(format!(
                             "{project_name} ({project_rel_path}): skipped checkout (uncommitted changes, use --force to override)"
                         ));
@@ -267,7 +296,11 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
                         return Ok(());
                     }
                     pb.set_message(format!("{project_name}: checking out {rev}..."));
-                    Git::checkout(&project_path, rev).await?;
+                    if force_this {
+                        Git::force_checkout(&project_path, rev).await?;
+                    } else {
+                        Git::checkout(&project_path, rev).await?;
+                    }
                 }
                 Ok(())
             } else if let Some(url) = &clone_url {

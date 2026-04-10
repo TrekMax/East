@@ -195,6 +195,88 @@ fn manifest_resolve_outputs_yaml() {
 }
 
 #[test]
+fn update_skips_dirty_project_checkout() {
+    let (_fixture, workspace) = setup_multi_project_workspace(2);
+
+    // Make project-0 dirty
+    fs::write(workspace.path().join("project-0/lib.rs"), "// modified\n").unwrap();
+
+    // Update should succeed but skip project-0's checkout
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .arg("update")
+        .current_dir(workspace.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("skipped checkout").or(predicate::str::is_empty()))
+        // The output goes to stderr via progress bar; check stdout for completion
+        .stdout(predicate::str::contains("updated 2 projects"));
+}
+
+#[test]
+fn update_force_specific_project() {
+    let (_fixture, workspace) = setup_multi_project_workspace(2);
+
+    // Make both projects dirty
+    fs::write(workspace.path().join("project-0/lib.rs"), "// modified\n").unwrap();
+    fs::write(workspace.path().join("project-1/lib.rs"), "// modified\n").unwrap();
+
+    // Force only project-0; project-1 should still be skipped
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .args(["update", "--force", "project-0"])
+        .current_dir(workspace.path())
+        .assert()
+        .success();
+
+    // project-0 should be checked out (clean now)
+    let content = fs::read_to_string(workspace.path().join("project-0/lib.rs")).unwrap();
+    assert_eq!(content, "// code for project-0\n");
+
+    // project-1 should still have local modifications (checkout was skipped)
+    let content = fs::read_to_string(workspace.path().join("project-1/lib.rs")).unwrap();
+    assert_eq!(content, "// modified\n");
+}
+
+#[test]
+fn update_force_all_projects() {
+    let (_fixture, workspace) = setup_multi_project_workspace(2);
+
+    // Make both dirty
+    fs::write(workspace.path().join("project-0/lib.rs"), "// modified\n").unwrap();
+    fs::write(workspace.path().join("project-1/lib.rs"), "// modified\n").unwrap();
+
+    // Force all (no project names)
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .args(["update", "--force"])
+        .current_dir(workspace.path())
+        .assert()
+        .success();
+
+    // Both should be restored
+    let c0 = fs::read_to_string(workspace.path().join("project-0/lib.rs")).unwrap();
+    let c1 = fs::read_to_string(workspace.path().join("project-1/lib.rs")).unwrap();
+    assert_eq!(c0, "// code for project-0\n");
+    assert_eq!(c1, "// code for project-1\n");
+}
+
+#[test]
+fn update_force_unknown_project_fails() {
+    let (_fixture, workspace) = setup_multi_project_workspace(1);
+
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .args(["update", "--force", "nonexistent"])
+        .current_dir(workspace.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "unknown project(s) for --force: nonexistent",
+        ));
+}
+
+#[test]
 fn update_outside_workspace_fails() {
     let dir = TempDir::new().unwrap();
 
