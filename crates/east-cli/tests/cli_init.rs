@@ -133,6 +133,123 @@ fn init_creates_workspace_from_local_manifest_repo() {
 }
 
 #[test]
+fn init_from_branch_with_revision_flag() {
+    let fixture = TempDir::new().unwrap();
+    let (_manifest_path, project_name) = setup_manifest_repo(&fixture);
+    let manifest_repo = fixture.path().join("manifest-repo");
+
+    // Create a new branch "dev" with a different east.yml
+    Command::new("git")
+        .arg("-C")
+        .arg(&manifest_repo)
+        .args(["checkout", "-b", "dev"])
+        .output()
+        .unwrap();
+    let dev_manifest = format!(
+        r"version: 1
+
+remotes:
+  - name: local
+    url-base: {project_parent}
+
+defaults:
+  remote: local
+  revision: main
+
+projects:
+  - name: {project_name}
+    path: dev/{project_name}
+",
+        project_parent = fixture
+            .path()
+            .join("project-repo")
+            .parent()
+            .unwrap()
+            .display(),
+        project_name = project_name,
+    );
+    fs::write(manifest_repo.join("east.yml"), dev_manifest).unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(&manifest_repo)
+        .args(["add", "."])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(&manifest_repo)
+        .args(["commit", "-m", "dev branch manifest"])
+        .output()
+        .unwrap();
+
+    // Switch back to main so we can verify -r fetches dev
+    Command::new("git")
+        .arg("-C")
+        .arg(&manifest_repo)
+        .args(["checkout", "main"])
+        .output()
+        .unwrap();
+
+    let workspace = TempDir::new().unwrap();
+
+    // Use file:// URL to trigger git clone path (local dir path skips revision)
+    let file_url = format!("file://{}", manifest_repo.display());
+
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .args(["init", &file_url, "-r", "dev"])
+        .current_dir(workspace.path())
+        .assert()
+        .success();
+
+    // The project should be cloned under dev/ path (from dev branch manifest)
+    assert!(
+        workspace.path().join("dev").join(&project_name).exists(),
+        "project should be cloned at dev/{project_name} per dev branch manifest"
+    );
+}
+
+#[test]
+fn init_from_tag_with_revision_flag() {
+    let fixture = TempDir::new().unwrap();
+    let (_manifest_path, _project_name) = setup_manifest_repo(&fixture);
+    let manifest_repo = fixture.path().join("manifest-repo");
+
+    // Tag the current commit
+    Command::new("git")
+        .arg("-C")
+        .arg(&manifest_repo)
+        .args(["tag", "v1.0"])
+        .output()
+        .unwrap();
+
+    let workspace = TempDir::new().unwrap();
+
+    // Use file:// URL to trigger git clone path
+    let file_url = format!("file://{}", manifest_repo.display());
+
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .args(["init", &file_url, "-r", "v1.0"])
+        .current_dir(workspace.path())
+        .assert()
+        .success();
+
+    assert!(workspace.path().join(".east").is_dir());
+    assert!(workspace.path().join("east.yml").exists());
+}
+
+#[test]
+fn init_help_shows_revision_option() {
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .args(["init", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--revision"));
+}
+
+#[test]
 fn init_fails_with_invalid_manifest() {
     let workspace = TempDir::new().unwrap();
 
