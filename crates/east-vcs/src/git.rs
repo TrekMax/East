@@ -184,11 +184,12 @@ impl Git {
         cmd.arg(dest);
         run_git(cmd, dest).await?;
 
-        // git -C <dest> sparse-checkout set <file>
+        // git -C <dest> sparse-checkout set --no-cone <file>
+        // --no-cone is required to match individual files (cone mode only matches directories)
         let mut cmd = Command::new("git");
         cmd.args(["-C"]);
         cmd.arg(dest);
-        cmd.args(["sparse-checkout", "set", file]);
+        cmd.args(["sparse-checkout", "set", "--no-cone", file]);
         run_git(cmd, dest).await?;
 
         Ok(())
