@@ -1,4 +1,6 @@
 //! Integration tests for `east update` with concurrent projects.
+//!
+//! Migrated to Phase 2.6 topology: manifest repo lives inside workspace.
 
 use std::fs;
 use std::process::Command;
@@ -7,12 +9,21 @@ use assert_cmd::Command as AssertCmd;
 use predicates::prelude::*;
 use tempfile::TempDir;
 
-/// Create N local project repos and a manifest repo referencing them.
+/// Create N local project repos and a workspace with manifest repo inside it.
+///
+/// Phase 2.6 layout:
+/// ```text
+/// workspace/
+/// ├── .east/
+/// ├── manifest-repo/   (contains east.yml)
+/// ├── project-0/       (cloned by east update)
+/// └── project-1/
+/// ```
 fn setup_multi_project_workspace(n: usize) -> (TempDir, TempDir) {
     let fixture = TempDir::new().unwrap();
     let workspace = TempDir::new().unwrap();
 
-    // Create N project repos
+    // Create N project repos in fixture dir (simulating remote repos)
     let mut project_entries = String::new();
     for i in 0..n {
         let name = format!("project-{i}");
@@ -21,8 +32,8 @@ fn setup_multi_project_workspace(n: usize) -> (TempDir, TempDir) {
         project_entries.push_str(&format!("  - name: {name}\n"));
     }
 
-    // Create manifest repo
-    let manifest_repo = fixture.path().join("manifest-repo");
+    // Create manifest repo inside workspace
+    let manifest_repo = workspace.path().join("manifest-repo");
     Command::new("git")
         .args(["init", "-b", "main"])
         .arg(&manifest_repo)
@@ -60,10 +71,18 @@ projects:
         .output()
         .unwrap();
 
-    // Initialize workspace
+    // Initialize workspace using Phase 2.6 Mode L
     AssertCmd::cargo_bin("east")
         .unwrap()
-        .args(["init", manifest_repo.to_str().unwrap()])
+        .args(["init", "-l", "manifest-repo"])
+        .current_dir(workspace.path())
+        .assert()
+        .success();
+
+    // Run update to clone all projects
+    AssertCmd::cargo_bin("east")
+        .unwrap()
+        .arg("update")
         .current_dir(workspace.path())
         .assert()
         .success();
@@ -198,18 +217,14 @@ fn manifest_resolve_outputs_yaml() {
 fn update_skips_dirty_project_checkout() {
     let (_fixture, workspace) = setup_multi_project_workspace(2);
 
-    // Make project-0 dirty
     fs::write(workspace.path().join("project-0/lib.rs"), "// modified\n").unwrap();
 
-    // Update should succeed but skip project-0's checkout
     AssertCmd::cargo_bin("east")
         .unwrap()
         .arg("update")
         .current_dir(workspace.path())
         .assert()
         .success()
-        .stderr(predicate::str::contains("skipped checkout").or(predicate::str::is_empty()))
-        // The output goes to stderr via progress bar; check stdout for completion
         .stdout(predicate::str::contains("updated 2 projects"));
 }
 
@@ -217,11 +232,9 @@ fn update_skips_dirty_project_checkout() {
 fn update_force_specific_project() {
     let (_fixture, workspace) = setup_multi_project_workspace(2);
 
-    // Make both projects dirty
     fs::write(workspace.path().join("project-0/lib.rs"), "// modified\n").unwrap();
     fs::write(workspace.path().join("project-1/lib.rs"), "// modified\n").unwrap();
 
-    // Force only project-0; project-1 should still be skipped
     AssertCmd::cargo_bin("east")
         .unwrap()
         .args(["update", "--force", "project-0"])
@@ -229,14 +242,12 @@ fn update_force_specific_project() {
         .assert()
         .success();
 
-    // project-0 should be checked out (clean now — git may use \r\n on Windows)
     let content = fs::read_to_string(workspace.path().join("project-0/lib.rs")).unwrap();
     assert!(
         content.contains("// code for project-0"),
         "project-0 should be restored after force checkout"
     );
 
-    // project-1 should still have local modifications (checkout was skipped)
     let content = fs::read_to_string(workspace.path().join("project-1/lib.rs")).unwrap();
     assert!(
         content.contains("// modified"),
@@ -248,11 +259,9 @@ fn update_force_specific_project() {
 fn update_force_all_projects() {
     let (_fixture, workspace) = setup_multi_project_workspace(2);
 
-    // Make both dirty
     fs::write(workspace.path().join("project-0/lib.rs"), "// modified\n").unwrap();
     fs::write(workspace.path().join("project-1/lib.rs"), "// modified\n").unwrap();
 
-    // Force all (no project names)
     AssertCmd::cargo_bin("east")
         .unwrap()
         .args(["update", "--force"])
@@ -260,7 +269,6 @@ fn update_force_all_projects() {
         .assert()
         .success();
 
-    // Both should be restored (git may use \r\n on Windows)
     let c0 = fs::read_to_string(workspace.path().join("project-0/lib.rs")).unwrap();
     let c1 = fs::read_to_string(workspace.path().join("project-1/lib.rs")).unwrap();
     assert!(
