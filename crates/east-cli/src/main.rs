@@ -469,7 +469,7 @@ async fn do_update(
     let mut handles = Vec::new();
 
     for project in &projects {
-        let project_path = workspace_root.join(project.effective_path());
+        let project_path = strip_unc_prefix(&workspace_root.join(project.effective_path()));
         let revision = manifest.project_revision(project).map(String::from);
         let clone_url = manifest.project_clone_url(project).ok();
         let project_name = project.name.clone();
@@ -685,7 +685,7 @@ fn cmd_list() -> miette::Result<()> {
         "NAME", "PATH", "REVISION", "CLONED"
     );
     for project in &projects {
-        let project_path = ws.root().join(project.effective_path());
+        let project_path = strip_unc_prefix(&ws.root().join(project.effective_path()));
         let revision = manifest.project_revision(project).unwrap_or("-");
         let cloned = if project_path.exists() { "yes" } else { "no" };
         println!(
@@ -715,7 +715,7 @@ async fn cmd_status() -> miette::Result<()> {
         "NAME", "STATUS", "HEAD", "BRANCH"
     );
     for project in &projects {
-        let project_path = ws.root().join(project.effective_path());
+        let project_path = strip_unc_prefix(&ws.root().join(project.effective_path()));
         if !project_path.exists() {
             println!(
                 "{:<20} {:<12} {:<42} {:<10}",
