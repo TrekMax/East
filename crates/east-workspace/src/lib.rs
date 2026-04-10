@@ -128,20 +128,21 @@ mod tests {
     }
 
     #[test]
-    fn workspace_missing_manifest_section_errors() {
+    fn workspace_without_manifest_config_falls_back() {
         let dir = TempDir::new().unwrap();
         fs::create_dir_all(dir.path().join(".east")).unwrap();
-        // Config exists but no [manifest] section
-        fs::write(dir.path().join(".east/config.toml"), "[user]\nname = \"test\"\n").unwrap();
+        // Config exists but no [manifest] section — legacy workspace
+        fs::write(
+            dir.path().join(".east/config.toml"),
+            "[user]\nname = \"test\"\n",
+        )
+        .unwrap();
 
         let ws = Workspace::discover(dir.path()).unwrap();
-        // Trying to get manifest paths should error
-        // (discover succeeds but manifest_repo_path should indicate the issue)
-        let err_msg = format!("{}", ws.manifest_repo_path().display());
-        // The workspace should detect this at load time or provide a method
-        // that surfaces the error. We test via manifest_file_path requiring config.
-        // For now, test that discover with config loading works.
-        let _ = err_msg; // placeholder - real test below
+        // manifest_repo_path falls back to workspace root when no config
+        assert_eq!(ws.manifest_repo_path(), ws.root());
+        // Legacy manifest_path() returns root/east.yml
+        assert_eq!(ws.manifest_path(), ws.root().join("east.yml"));
     }
 
     #[test]
