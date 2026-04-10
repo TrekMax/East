@@ -270,6 +270,7 @@ async fn do_update(
         let force_set = force_set.clone();
         let pb = mp.insert_after(&overall, ProgressBar::new_spinner());
         pb.set_style(spinner_style.clone());
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
 
         let handle = tokio::spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore closed");
