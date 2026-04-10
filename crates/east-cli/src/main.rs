@@ -249,9 +249,16 @@ async fn do_update(workspace_root: &Path) -> miette::Result<()> {
                     pb.set_message(format!("{project_name}: initializing..."));
                     Git::init_and_fetch(url, &project_path, revision.as_deref()).await
                 } else {
-                    // Clone
+                    // Clone — fallback to init+fetch if the directory was
+                    // created by a concurrent sibling clone in the meantime.
                     pb.set_message(format!("{project_name}: cloning..."));
-                    Git::clone(url, &project_path, revision.as_deref()).await
+                    let clone_result = Git::clone(url, &project_path, revision.as_deref()).await;
+                    if clone_result.is_err() && project_path.exists() {
+                        pb.set_message(format!("{project_name}: initializing (fallback)..."));
+                        Git::init_and_fetch(url, &project_path, revision.as_deref()).await
+                    } else {
+                        clone_result
+                    }
                 }
             } else {
                 Err(east_vcs::error::VcsError::GitFailed {
