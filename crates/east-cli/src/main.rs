@@ -314,11 +314,103 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
     }
     overall.finish_and_clear();
 
+    // Maintain .git/info/exclude for parent repos that contain child project paths.
+    // This prevents nested project directories from showing as untracked in the parent.
+    update_git_excludes(workspace_root, &projects);
+
     if errors.is_empty() {
         println!("updated {} projects", projects.len());
         Ok(())
     } else {
         bail!("errors updating projects:\n{}", errors.join("\n"));
+    }
+}
+
+/// For each project whose path is a prefix of another project's path (parent/child
+/// relationship), add the child's relative path to the parent's `.git/info/exclude`.
+fn update_git_excludes(workspace_root: &Path, projects: &[&east_manifest::Project]) {
+    use std::collections::BTreeMap;
+
+    // Build a map of project path -> list of child relative paths
+    let paths: Vec<String> = projects
+        .iter()
+        .map(|p| p.effective_path().to_string())
+        .collect();
+    let mut parent_children: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+    for (i, parent_path) in paths.iter().enumerate() {
+        for (j, child_path) in paths.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            let prefix = format!("{parent_path}/");
+            if child_path.starts_with(&prefix) {
+                // child_path relative to parent_path
+                let relative = &child_path[prefix.len()..];
+                parent_children
+                    .entry(parent_path.clone())
+                    .or_default()
+                    .push(format!("/{relative}/"));
+            }
+        }
+    }
+
+    let marker = "# managed by east — do not edit this block";
+    let end_marker = "# end east managed block";
+
+    for (parent_path, children) in &parent_children {
+        let git_dir = workspace_root.join(parent_path).join(".git");
+        if !git_dir.is_dir() {
+            continue;
+        }
+        let info_dir = git_dir.join("info");
+        let _ = std::fs::create_dir_all(&info_dir);
+        let exclude_path = info_dir.join("exclude");
+
+        // Read existing content, strip old east block if present
+        let existing = std::fs::read_to_string(&exclude_path).unwrap_or_default();
+        let mut lines: Vec<&str> = Vec::new();
+        let mut in_block = false;
+        for line in existing.lines() {
+            if line == marker {
+                in_block = true;
+                continue;
+            }
+            if line == end_marker {
+                in_block = false;
+                continue;
+            }
+            if !in_block {
+                lines.push(line);
+            }
+        }
+
+        // Remove trailing empty lines
+        while lines.last() == Some(&"") {
+            lines.pop();
+        }
+
+        // Append east managed block
+        if !lines.is_empty() {
+            lines.push("");
+        }
+        let mut block = vec![marker.to_string()];
+        let mut sorted_children = children.clone();
+        sorted_children.sort();
+        sorted_children.dedup();
+        for child in &sorted_children {
+            block.push(child.clone());
+        }
+        block.push(end_marker.to_string());
+
+        let mut output = lines.join("\n");
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str(&block.join("\n"));
+        output.push('\n');
+
+        let _ = std::fs::write(&exclude_path, output);
     }
 }
 
