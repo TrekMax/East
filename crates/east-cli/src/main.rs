@@ -199,6 +199,7 @@ async fn cmd_update(force: bool) -> miette::Result<()> {
     do_update(ws.root(), force).await
 }
 
+#[allow(clippy::too_many_lines)]
 async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
     let manifest_path = workspace_root.join("east.yml");
     let manifest = Manifest::resolve(&manifest_path)
@@ -237,6 +238,7 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
         let revision = manifest.project_revision(project).map(String::from);
         let clone_url = manifest.project_clone_url(project).ok();
         let project_name = project.name.clone();
+        let project_rel_path = project.effective_path().to_string();
         let sem = semaphore.clone();
         let overall = overall.clone();
         let pb = mp.insert_after(&overall, ProgressBar::new_spinner());
@@ -259,7 +261,7 @@ async fn do_update(workspace_root: &Path, force: bool) -> miette::Result<()> {
                     let dirty = Git::is_dirty(&project_path).await.unwrap_or(false);
                     if dirty && !force {
                         pb.finish_with_message(format!(
-                            "{project_name}: skipped checkout (uncommitted changes, use --force to override)"
+                            "{project_name} ({project_rel_path}): skipped checkout (uncommitted changes, use --force to override)"
                         ));
                         overall.inc(1);
                         return Ok(());
