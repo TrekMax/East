@@ -8,13 +8,12 @@ use thiserror::Error;
 #[allow(clippy::module_name_repetitions)]
 pub enum VcsError {
     /// A git command failed with a non-zero exit code.
-    #[error("git command failed in {path}")]
+    #[error("git command failed in {path}: {stderr}")]
     #[diagnostic(help("check that the repository exists and the revision is valid"))]
     GitFailed {
         /// Working directory or target path.
         path: PathBuf,
         /// The stderr output from git.
-        #[source_code]
         stderr: String,
     },
 

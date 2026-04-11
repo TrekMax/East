@@ -24,6 +24,7 @@ use crate::error::VcsError;
 /// let dirty = Git::is_dirty(Path::new("./repo")).await?;
 /// # Ok(())
 /// # }
+/// ```
 pub struct Git;
 
 impl Git {
