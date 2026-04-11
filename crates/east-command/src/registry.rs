@@ -35,6 +35,25 @@ pub struct ResolvedCommand {
 ///
 /// Holds manifest-declared and PATH-discovered commands with collision
 /// resolution: manifest commands always win over PATH commands.
+///
+/// # Example
+///
+/// ```
+/// use east_manifest::Manifest;
+/// use east_command::registry::CommandRegistry;
+///
+/// let yaml = r#"
+/// version: 1
+/// commands:
+///   - name: hello
+///     help: "Say hello"
+///     exec: "echo hello"
+/// "#;
+/// let manifest = Manifest::from_yaml_str(yaml).unwrap();
+/// let registry = CommandRegistry::from_manifest(&manifest);
+/// assert!(registry.get("hello").is_some());
+/// assert!(registry.get("unknown").is_none());
+/// ```
 #[derive(Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct CommandRegistry {
