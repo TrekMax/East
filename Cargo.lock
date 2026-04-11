@@ -295,6 +295,7 @@ version = "0.2.1"
 name = "east-vcs"
 version = "0.2.1"
 dependencies = [
+ "miette",
  "tempfile",
  "thiserror",
  "tokio",

@@ -7,6 +7,7 @@ repository.workspace = true
 description = "Git operations via shell-out to system git for east"
 
 [dependencies]
+miette = { workspace = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["process"] }
 
