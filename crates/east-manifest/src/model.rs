@@ -12,6 +12,18 @@ use crate::error::ManifestError;
 ///
 /// Combined with a project name to form the full clone URL:
 /// `{url_base}/{project_name}`.
+///
+/// # Example
+///
+/// ```
+/// use east_manifest::Remote;
+///
+/// let remote = Remote {
+///     name: "origin".into(),
+///     url_base: "https://github.com/my-org".into(),
+/// };
+/// assert_eq!(remote.name, "origin");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Remote {
     /// Unique identifier for this remote (e.g. `"origin"`).
@@ -36,6 +48,30 @@ pub struct Defaults {
 ///
 /// Each project maps to one git repository that will be cloned into
 /// the workspace.
+///
+/// # Example
+///
+/// ```
+/// use east_manifest::Project;
+///
+/// let p = Project {
+///     name: "hal".into(),
+///     path: Some("modules/hal".into()),
+///     remote: None,
+///     revision: Some("v2.0".into()),
+///     groups: vec!["required".into()],
+/// };
+/// assert_eq!(p.effective_path(), "modules/hal");
+///
+/// let p2 = Project {
+///     name: "app".into(),
+///     path: None,
+///     remote: None,
+///     revision: None,
+///     groups: vec![],
+/// };
+/// assert_eq!(p2.effective_path(), "app");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     /// Unique project name (also used to construct the clone URL).
@@ -196,6 +232,28 @@ impl Manifest {
     /// # Errors
     ///
     /// Returns [`ManifestError`] if parsing or validation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use east_manifest::Manifest;
+    ///
+    /// let yaml = r#"
+    /// version: 1
+    /// remotes:
+    ///   - name: origin
+    ///     url-base: https://github.com/my-org
+    /// defaults:
+    ///   remote: origin
+    ///   revision: main
+    /// projects:
+    ///   - name: hal
+    ///     path: modules/hal
+    /// "#;
+    /// let manifest = Manifest::from_yaml_str(yaml).unwrap();
+    /// assert_eq!(manifest.projects.len(), 1);
+    /// assert_eq!(manifest.projects[0].name, "hal");
+    /// ```
     pub fn from_yaml_str(yaml: &str) -> Result<Self, ManifestError> {
         let manifest: Self = serde_yaml::from_str(yaml)?;
         manifest.validate()?;

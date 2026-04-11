@@ -1,6 +1,19 @@
 use std::fmt;
 
 /// A configuration value that can be stored in a config layer.
+///
+/// # Example
+///
+/// ```
+/// use east_config::ConfigValue;
+///
+/// let s = ConfigValue::String("hello".into());
+/// assert_eq!(s.as_str(), Some("hello"));
+/// assert_eq!(format!("{s}"), "hello");
+///
+/// let n = ConfigValue::Integer(42);
+/// assert_eq!(n.as_i64(), Some(42));
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub enum ConfigValue {

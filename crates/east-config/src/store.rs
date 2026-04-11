@@ -9,6 +9,19 @@ use crate::value::ConfigValue;
 ///
 /// Keys are dotted paths (e.g. `"user.name"`). Internally the store
 /// is a tree of `Node`s — branches hold child nodes, leaves hold values.
+///
+/// # Example
+///
+/// ```
+/// use east_config::{ConfigStore, ConfigValue};
+///
+/// let mut store = ConfigStore::new();
+/// store.set("user.name", ConfigValue::String("alice".into()));
+/// store.set("update.jobs", ConfigValue::Integer(4));
+///
+/// assert_eq!(store.get("user.name").and_then(|v| v.as_str()), Some("alice"));
+/// assert_eq!(store.get("update.jobs").and_then(|v| v.as_i64()), Some(4));
+/// ```
 #[derive(Debug, Clone)]
 #[allow(clippy::module_name_repetitions)]
 pub struct ConfigStore {
@@ -67,6 +80,18 @@ impl ConfigStore {
     /// # Errors
     ///
     /// Returns [`ConfigError::TomlParse`] if the TOML is invalid.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use east_config::ConfigStore;
+    ///
+    /// let store = ConfigStore::from_toml_str(r#"
+    /// [user]
+    /// name = "alice"
+    /// "#).unwrap();
+    /// assert_eq!(store.get("user.name").and_then(|v| v.as_str()), Some("alice"));
+    /// ```
     pub fn from_toml_str(toml_str: &str) -> Result<Self, ConfigError> {
         let table: toml::Table = toml::from_str(toml_str)?;
         let mut store = Self::new();

@@ -11,6 +11,19 @@ use crate::error::VcsError;
 ///
 /// All methods are async and call the `git` binary as a child process.
 /// No `libgit2` or `git2-rs` binding is used.
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::Path;
+/// use east_vcs::Git;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// Git::clone("https://github.com/org/repo", Path::new("./repo"), Some("main")).await?;
+/// let sha = Git::head(Path::new("./repo")).await?;
+/// let dirty = Git::is_dirty(Path::new("./repo")).await?;
+/// # Ok(())
+/// # }
 pub struct Git;
 
 impl Git {

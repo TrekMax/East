@@ -18,6 +18,20 @@ const LEGACY_MANIFEST_FILE: &str = "east.yml";
 /// A workspace is rooted at the directory that contains `.east/`.
 /// The manifest location is determined by the `[manifest]` section
 /// in `.east/config.toml`.
+///
+/// # Example
+///
+/// ```
+/// # use tempfile::TempDir;
+/// use east_workspace::Workspace;
+///
+/// let dir = TempDir::new().unwrap();
+/// let ws = Workspace::init(dir.path()).unwrap();
+/// assert!(ws.east_dir().exists());
+///
+/// let found = Workspace::discover(dir.path()).unwrap();
+/// assert_eq!(found.root(), ws.root());
+/// ```
 #[derive(Debug, Clone)]
 pub struct Workspace {
     root: PathBuf,
