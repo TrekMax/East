@@ -477,7 +477,10 @@ async fn do_update(
         let cfg = Config::load_with_provider(&provider).into_diagnostic()?;
         cfg.get("update.jobs")
             .and_then(|v| v.as_i64())
-            .map_or(DEFAULT_CONCURRENT_GIT, |n| n.max(1) as usize)
+            .map_or(DEFAULT_CONCURRENT_GIT, |n| {
+                let n = n.max(1);
+                usize::try_from(n).unwrap_or(usize::MAX)
+            })
     };
     let semaphore = std::sync::Arc::new(Semaphore::new(max_jobs));
     let overall = std::sync::Arc::new(overall);
