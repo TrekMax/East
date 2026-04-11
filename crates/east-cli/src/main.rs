@@ -476,7 +476,7 @@ async fn do_update(
         let provider = DefaultPathProvider::new(Some(workspace_root.to_path_buf()));
         let cfg = Config::load_with_provider(&provider).into_diagnostic()?;
         cfg.get("update.jobs")
-            .and_then(|v| v.as_i64())
+            .and_then(ConfigValue::as_i64)
             .map_or(DEFAULT_CONCURRENT_GIT, |n| {
                 let n = n.max(1);
                 usize::try_from(n).unwrap_or(usize::MAX)
