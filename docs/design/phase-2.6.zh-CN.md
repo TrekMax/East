@@ -1,7 +1,7 @@
 # Phase 2.6 设计文档 — 拓扑修正
 
 **状态：** 生效中
-**范围：** 修正 workspace 拓扑，让 manifest 住在真实 git 仓库中，而非 workspace 根的裸文件。对已有 workspace 是破坏性变更。
+**范围：** 修正 workspace 拓扑，让 manifest 存放于真实 git 仓库中，而非 workspace 根的裸文件。对已有 workspace 是破坏性变更。
 
 ## 1. 本 Phase 存在的原因
 
