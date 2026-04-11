@@ -18,8 +18,8 @@ use miette::{IntoDiagnostic, WrapErr, bail};
 use tokio::sync::Semaphore;
 use tracing::info;
 
-/// Maximum concurrent git operations.
-const MAX_CONCURRENT_GIT: usize = 8;
+/// Default maximum concurrent git operations.
+const DEFAULT_CONCURRENT_GIT: usize = 8;
 
 /// A fast, manifest-driven development toolkit.
 #[derive(Parser)]
@@ -471,7 +471,15 @@ async fn do_update(
         .template("  {spinner:.green} {msg}")
         .expect("valid template");
 
-    let semaphore = std::sync::Arc::new(Semaphore::new(MAX_CONCURRENT_GIT));
+    // Read update.jobs from config, falling back to DEFAULT_CONCURRENT_GIT.
+    let max_jobs = {
+        let provider = DefaultPathProvider::new(Some(workspace_root.to_path_buf()));
+        let cfg = Config::load_with_provider(&provider).into_diagnostic()?;
+        cfg.get("update.jobs")
+            .and_then(|v| v.as_i64())
+            .map_or(DEFAULT_CONCURRENT_GIT, |n| n.max(1) as usize)
+    };
+    let semaphore = std::sync::Arc::new(Semaphore::new(max_jobs));
     let overall = std::sync::Arc::new(overall);
     let force_set: std::sync::Arc<std::collections::HashSet<String>> =
         std::sync::Arc::new(force_projects.iter().cloned().collect());
