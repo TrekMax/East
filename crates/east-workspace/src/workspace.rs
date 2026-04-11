@@ -49,7 +49,10 @@ impl Workspace {
     ///
     /// Returns [`WorkspaceError::NotFound`] if no `.east/` directory is found.
     pub fn discover(start: &Path) -> Result<Self, WorkspaceError> {
-        let mut current = fs::canonicalize(start)?;
+        let mut current = fs::canonicalize(start).map_err(|e| WorkspaceError::Io {
+            path: start.to_path_buf(),
+            source: e,
+        })?;
 
         loop {
             if current.join(EAST_DIR).is_dir() {
@@ -82,8 +85,14 @@ impl Workspace {
     /// Returns [`WorkspaceError::Io`] if directory creation fails.
     pub fn init(root: &Path) -> Result<Self, WorkspaceError> {
         let east_dir = root.join(EAST_DIR);
-        fs::create_dir_all(&east_dir)?;
-        let canonical_root = fs::canonicalize(root)?;
+        fs::create_dir_all(&east_dir).map_err(|e| WorkspaceError::Io {
+            path: east_dir.clone(),
+            source: e,
+        })?;
+        let canonical_root = fs::canonicalize(root).map_err(|e| WorkspaceError::Io {
+            path: root.to_path_buf(),
+            source: e,
+        })?;
         Ok(Self {
             root: canonical_root,
             manifest_repo_path: None,

@@ -120,7 +120,10 @@ impl ConfigStore {
         if !path.exists() {
             return Ok(Self::new());
         }
-        let content = fs::read_to_string(path)?;
+        let content = fs::read_to_string(path).map_err(|e| ConfigError::Io {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
         Self::from_toml_str(&content)
     }
 
@@ -131,10 +134,16 @@ impl ConfigStore {
     /// Returns [`ConfigError`] on I/O or serialization errors.
     pub fn save_to_file(&self, path: &Path) -> Result<(), ConfigError> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).map_err(|e| ConfigError::Io {
+                path: parent.to_path_buf(),
+                source: e,
+            })?;
         }
         let content = self.to_toml_string()?;
-        fs::write(path, content)?;
+        fs::write(path, &content).map_err(|e| ConfigError::Io {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
         Ok(())
     }
 

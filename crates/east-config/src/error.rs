@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use miette::Diagnostic;
 use thiserror::Error;
 
@@ -5,9 +7,14 @@ use thiserror::Error;
 #[derive(Debug, Error, Diagnostic)]
 #[allow(clippy::module_name_repetitions)]
 pub enum ConfigError {
-    /// Filesystem I/O error.
-    #[error("config I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    /// Filesystem I/O error with path context.
+    #[error("{path}: {source}")]
+    Io {
+        /// The path that triggered the error.
+        path: PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
 
     /// TOML parsing error.
     #[error("failed to parse TOML: {0}")]

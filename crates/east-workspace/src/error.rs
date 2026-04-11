@@ -13,7 +13,12 @@ pub enum WorkspaceError {
         start: PathBuf,
     },
 
-    /// Filesystem I/O error.
-    #[error("workspace I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    /// Filesystem I/O error with path context.
+    #[error("{path}: {source}")]
+    Io {
+        /// The path that triggered the error.
+        path: PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
 }
