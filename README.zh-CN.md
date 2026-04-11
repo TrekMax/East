@@ -15,11 +15,12 @@
 
 ## 状态
 
-**Phase 2.6** — 已完成。
+**Phase 2.7** — 已完成。
 
 - **Phase 1：** 多仓库管理 — `east init`、`east update`、`east list`、`east status`、`east manifest --resolve`
 - **Phase 2：** 配置与扩展命令 — `east config`、manifest 声明命令、PATH 发现、模板引擎
 - **Phase 2.6：** 拓扑修正 — manifest 住在 workspace 内的真实 git 仓库中
+- **Phase 2.7：** 质量改进 — doc-tests、统一 miette 诊断、CI 覆盖率、可配置并发数
 
 ## 快速开始
 
