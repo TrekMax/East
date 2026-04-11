@@ -45,7 +45,7 @@ doc-tests 从 **1 个**（仅 `Config`）增长到 **9 个**。
 
 - 从分层配置系统读取 `update.jobs`
 - 未设置时回退到 `DEFAULT_CONCURRENT_GIT`（8）
-- 最小值钳位为 1
+- 最小值限制为最小 1
 - 用户通过以下命令设置：`east config set --int update.jobs 16`
 
 ## 测试概览
@@ -71,4 +71,4 @@ doc-tests 从 **1 个**（仅 `Config`）增长到 **9 个**。
 
 3. **Codecov 设置 `fail_ci_if_error: false`。** 覆盖率上传为尽力而为——Codecov 宕机不应阻塞合并。
 
-4. **最小 jobs 钳位为 1。** 将 `update.jobs` 设为 0 或负数时回退到 1，而非在 `Semaphore::new(0)` 上 panic。
+4. **最小 jobs 限制为最小 1。** 将 `update.jobs` 设为 0 或负数时回退到 1，而非在 `Semaphore::new(0)` 上 panic。

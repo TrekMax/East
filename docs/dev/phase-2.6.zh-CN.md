@@ -2,7 +2,7 @@
 
 ## 交付内容
 
-修正 workspace 拓扑：manifest 现在住在真实 git 仓库中，与 `.east/` 平级。
+修正 workspace 拓扑：manifest 现在存放于真实 git 仓库中，与 `.east/` 平级。
 
 ### 新的 `east init` 模式
 
