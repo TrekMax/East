@@ -15,11 +15,12 @@ A fast, manifest-driven development toolkit written in Rust.
 
 ## Status
 
-**Phase 2.6** — complete.
+**Phase 2.7** — complete.
 
 - **Phase 1:** Multi-repo management — `east init`, `east update`, `east list`, `east status`, `east manifest --resolve`
 - **Phase 2:** Configuration & extension commands — `east config`, manifest-declared commands, PATH-based discovery, template engine
 - **Phase 2.6:** Topology correction — manifest lives in a real git repo inside the workspace
+- **Phase 2.7:** Quality improvements — doc-tests, unified miette diagnostics, CI coverage, configurable concurrency
 
 ## Quick Start
 
